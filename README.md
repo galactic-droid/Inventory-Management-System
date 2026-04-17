@@ -1,6 +1,6 @@
 # Envanter Sistemi
 
-Bu proje, FastAPI ve Docker kullanılarak geliştirilmiş, modern ve akıllı bir envanter ve depo yönetim sistemidir. Stok takibi, talep tahminlemesi, çok seviyeli depo hiyerarşisi ve otomatik raf optimizasyonu gibi gelişmiş özellikler sunar.
+Bu proje, FastAPI ve Docker kullanılarak geliştirilmiş bir envanter ve depo yönetim sistemidir. Stok takibi, talep tahminlemesi, çok seviyeli depo hiyerarşisi ve otomatik raf optimizasyonu gibi özellikler sunar.
 
 ## Temel Özellikler
 
@@ -24,7 +24,7 @@ Bu proje, FastAPI ve Docker kullanılarak geliştirilmiş, modern ve akıllı bi
 
 Sistem temel olarak iki ana model üzerine kuruludur:
 
-- **`Location` (Konum):** Kendi kendini referans alabilen (parent-child) bir modeldir. Bu sayede `Depo > Bölge > Koridor > Raf` gibi iç içe geçmiş bir ağaç yapısı oluşturulur. Kapasite (hacim, ağırlık) ve `is_cold_chain` gibi özellikler sadece en alt seviyedeki (yaprak) lokasyonlarda tanımlanır.
+- **`Location` (Konum):** Kendi kendini referans alabilen bir modeldir. Bu sayede `Depo > Bölge > Koridor > Raf` gibi iç içe geçmiş bir ağaç yapısı oluşturulur. Kapasite (hacim, ağırlık) ve `is_cold_chain` gibi özellikler sadece en alt seviyedeki lokasyonlarda tanımlanır.
 - **`Product` (Ürün):** Stok miktarı, tedarik süresi, boyutları ve `is_cold_chain` gibi temel bilgileri içerir. `SaleLog`, `InventoryLog` ve `StockBatch` gibi alt tablolarla ilişkilidir.
 
 ## Kurulum ve Çalıştırma
@@ -78,7 +78,7 @@ docker-compose down
 ├── schemas/            # Veri doğrulama şemaları (Pydantic)
 ├── models/             # Veritabanı modelleri (SQLAlchemy)
 ├── main.py             # Ana FastAPI uygulaması ve API endpoint'leri
-├── seed.py             # Test verilerini oluşturan başlangıç betiği
+├── seed.py             # Test verilerini oluşturan başlangıç scripti
 ├── database.py         # Veritabanı bağlantı ayarları
 ├── Dockerfile          # Docker imajı oluşturma reçetesi
 ├── docker-compose.yml  # Docker servislerini yönetme dosyası

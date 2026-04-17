@@ -36,10 +36,9 @@ Sistem temel olarak iki ana model üzerine kuruludur:
 ### Docker ile Kurulum (Önerilen)
 
 1.  **Projeyi Klonlayın:**
-    *(Not: URL'yi kendi GitHub repo adresinizle güncelleyin)*
     ```bash
     git clone https://github.com/galactic-droid/Inventory-Management-System
-    cd proje-ismi
+    cd Inventory-Management-System
     ```
 
 2.  **Uygulamayı Başlatın:**

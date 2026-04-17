@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Depo Yönetimi & Haritası</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .shelf-card { transition: all 0.2s ease-in-out; }
+        .shelf-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-5 px-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="text-dark fw-bold">🏭 Depo Yönetimi & Haritası</h2>
+            <a href="/dashboard" class="btn btn-primary fw-bold">Ana Panele Dön</a>
+        </div>
+
+        <!-- YENİ LOKASYON OLUŞTURMA FORMU -->
+        <div class="card shadow-sm mb-5">
+            <div class="card-body p-4">
+                <h5 class="card-title mb-4 text-secondary border-bottom pb-2">Yeni Lokasyon Tanımla</h5>
+                <form id="addLocationForm" class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-bold">Konum Adı</label>
+                        <input type="text" class="form-control" id="name" required placeholder="Örn: Ana Depo, Koridor 1">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-bold">Konum Tipi</label>
+                        <select class="form-select" id="location_type" required>
+                            <option value="WAREHOUSE">🏢 Ana Depo</option>
+                            <option value="ZONE">📍 Bölge</option>
+                            <option value="AISLE">🛤️ Koridor</option>
+                            <option value="RACK">🗄️ Raf Ünitesi</option>
+                            <option value="BIN">📦 Raf Gözü</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-bold">Bağlı Olduğu Üst Konum</label>
+                        <select class="form-select" id="parent_id">
+                            <option value="">-- Bağımsız (En Üst Seviye) --</option>
+                            {% for loc in all_locations %}
+                                <option value="{{ loc.id }}">{{ loc.name }} ({{ loc.location_type }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-bold">Max Hacim (m³)*</label>
+                        <input type="number" step="0.1" class="form-control" id="max_volume_m3" value="0">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-bold">Max Ağırlık (kg)*</label>
+                        <input type="number" step="1" class="form-control" id="max_weight_kg" value="0">
+                    </div>
+                    <div class="col-12 mt-2">
+                        <small class="text-muted">* Sadece en alt seviyedeki (Raf Gözü vb.) lokasyonlar için kapasite giriniz. Üst gruplar otomatik toplanır.</small>
+                    </div>
+                    <div class="col-md-3 ms-auto mt-2">
+                        <button type="submit" class="btn btn-success w-100 fw-bold">Konumu Oluştur</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- MACRO: AĞAÇ YAPISINI ÇİZMEK İÇİN -->
+        {% macro render_location(loc) %}
+        <div class="accordion-item border-0 bg-transparent mb-2">
+            <h2 class="accordion-header" id="heading-{{ loc.id }}">
+                <button class="accordion-button collapsed py-2 px-3 shadow-sm rounded {% if loc.parent_id == None %}bg-secondary text-white fw-bold{% else %}bg-white border text-dark{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loc.id }}" aria-expanded="false" aria-controls="collapse-{{ loc.id }}" style="min-height: 45px;">
+                    <div class="d-flex justify-content-between w-100 align-items-center">
+                        <span>
+                            {% if loc.location_type == 'WAREHOUSE' %}🏢
+                            {% elif loc.location_type == 'ZONE' %}📍
+                            {% elif loc.location_type == 'AISLE' %}🛤️
+                            {% elif loc.location_type == 'RACK' %}🗄️
+                            {% else %}📦{% endif %}
+                            {{ loc.name }} <small class="{% if loc.parent_id == None %}text-white-50{% else %}text-muted{% endif %} ms-2 fw-normal">({{ loc.location_type }})</small>
+                        </span>
+                    </div>
+                </button>
+            </h2>
+            <div id="collapse-{{ loc.id }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ loc.id }}">
+                <div class="accordion-body pt-3 pb-2 ps-4 pe-0 border-start border-2 border-secondary ms-3">
+                    {% if loc.sub_locations|length > 0 %}
+                        <div class="accordion" id="accordion-sub-{{ loc.id }}">
+                        {% for sub in loc.sub_locations %}
+                            {{ render_location(sub) }}
+                        {% endfor %}
+                        </div>
+                    {% else %}
+                        <!-- Leaf Node (En alt raf) Data -->
+                        {% set totals = namespace(volume=0, weight=0) %}
+                        {% for placement in loc.placements %}
+                            {% if placement.product %}
+                                {% set totals.volume = totals.volume + (placement.product.size_m3 * placement.quantity) %}
+                                {% set totals.weight = totals.weight + (placement.product.weight_kg * placement.quantity) %}
+                            {% endif %}
+                        {% endfor %}
+                        {% set volume_percent = ((totals.volume / loc.max_volume_m3 * 100) if loc.max_volume_m3 > 0 else 0)|round(1) %}
+                        {% set weight_percent = ((totals.weight / loc.max_weight_kg * 100) if loc.max_weight_kg > 0 else 0)|round(1) %}
+                        {% if volume_percent > 100.0 %}{% set volume_percent = 100.0 %}{% endif %}
+                        {% if weight_percent > 100.0 %}{% set weight_percent = 100.0 %}{% endif %}
+
+                        <div class="card shadow-sm mb-2 border-0 bg-white">
+                            <div class="card-body py-2 px-3">
+                                {% if loc.placements|length > 0 %}
+                                    {% for placement in loc.placements %}
+                                    {% if placement.product %}
+                                        <div class="d-flex justify-content-between align-items-center {% if not loop.last %}border-bottom pb-2 mb-2{% endif %}">
+                                            <div>
+                                                <h6 class="card-title text-dark mb-0" style="font-size: 0.9rem;">{{ placement.product.name }}</h6>
+                                            </div>
+                                            <span class="badge bg-primary rounded-pill">{{ placement.quantity }} Adet</span>
+                                        </div>
+                                    {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-success small fw-bold">✅ Bu Lokasyon Boş</span>
+                                {% endif %}
+                                
+                                {% if loc.max_volume_m3 > 0 or loc.max_weight_kg > 0 %}
+                                <div class="mt-2 pt-2 border-top">
+                                    <div class="mb-1">
+                                        <small class="text-muted" style="font-size: 0.7rem;">Hacim ({{ "%.2f"|format(totals.volume) }} / {{ loc.max_volume_m3 }} m³)</small>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-info" role="progressbar" {{ ('style="width: %s%%;"' % volume_percent)|safe }}></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted" style="font-size: 0.7rem;">Ağırlık ({{ "%.1f"|format(totals.weight) }} / {{ loc.max_weight_kg }} kg)</small>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-success" role="progressbar" {{ ('style="width: %s%%;"' % weight_percent)|safe }}></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endmacro %}
+
+        <!-- MEVCUT LOKASYONLARIN LİSTESİ -->
+        <h4 class="text-secondary mb-3">Depo Ağacı (Hiyerarşi)</h4>
+        <div class="accordion" id="warehouseAccordion">
+            {% for loc in locations %}
+                {{ render_location(loc) }}
+            {% else %}
+                <div class="alert alert-info shadow-sm border-0">Henüz tanımlanmış bir depo veya lokasyon bulunmuyor. Yukarıdan yeni bir tane ekleyebilirsiniz.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- DEPO YENİDEN DENGELEME LOG MODALI -->
+    <div class="modal fade" id="rebalanceLogModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning border-bottom-0">
+                    <h5 class="modal-title fw-bold text-dark">⚙️ Depo Yeniden Dengelendi!</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Depo verimliliğini artırmak için aşağıdaki ürünlerin konumları otomatik olarak güncellendi:</p>
+                    <ul class="list-group" id="rebalanceLogList">
+                        <!-- Loglar buraya JavaScript ile eklenecek -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST BİLDİRİMİ -->
+    <div class="toast-container position-fixed top-0 end-0 p-4" style="z-index: 1055;">
+        <div id="rebalanceToast" class="toast shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-warning text-dark border-bottom-0">
+                <strong class="me-auto">⚙️ Sistem Bildirimi</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Kapat"></button>
+            </div>
+            <div class="toast-body bg-white">
+                Depo yeniden dengelendi. <span id="rebalanceToastCount" class="fw-bold"></span> ürünün konumu güncellendi.
+                <div class="mt-2 pt-2 border-top">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rebalanceLogModal">Değişiklikleri Gör</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // --- YENİ: Otomatik Yeniden Dengeleme Sonuçlarını Gösteren Yardımcı Fonksiyon ---
+        async function handleResponse(res) {
+            if (res.ok) {
+                const data = await res.json();
+                if (data.rebalance_log && data.rebalance_log.length > 0) {
+                    sessionStorage.setItem('rebalanceLogs', JSON.stringify(data.rebalance_log));
+                }
+                window.location.reload();
+            } else {
+                const err = await res.json();
+                alert("HATA: " + (err.detail || "İşlem gerçekleştirilemedi."));
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const logsData = sessionStorage.getItem('rebalanceLogs');
+            if (logsData) {
+                const logs = JSON.parse(logsData);
+                document.getElementById('rebalanceToastCount').textContent = logs.length;
+                
+                const logList = document.getElementById('rebalanceLogList');
+                logList.innerHTML = '';
+                logs.forEach(log => {
+                    logList.innerHTML += `<li class="list-group-item">${log}</li>`;
+                });
+                
+                const toastEl = document.getElementById('rebalanceToast');
+                const toast = new bootstrap.Toast(toastEl, { delay: 6000 });
+                toast.show();
+                
+                sessionStorage.removeItem('rebalanceLogs');
+            }
+        });
+
+    document.getElementById('addLocationForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+            name: document.getElementById('name').value,
+            location_type: document.getElementById('location_type').value,
+            parent_id: document.getElementById('parent_id').value ? parseInt(document.getElementById('parent_id').value) : null,
+                max_volume_m3: parseFloat(document.getElementById('max_volume_m3').value),
+            max_weight_kg: parseFloat(document.getElementById('max_weight_kg').value)
+            };
+
+            try {
+            const res = await fetch('/locations/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                await handleResponse(res);
+            } catch (err) { alert("Sunucu hatası: Bağlantı kurulamadı."); }
+        });
+    </script>
+</body>
+</html>

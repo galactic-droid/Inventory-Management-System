@@ -1,0 +1,11 @@
+services:
+  web:
+    build: .
+    container_name: envanter-app
+    ports:
+      - "8000:8000"
+    volumes:
+      # Kendi bilgisayarımızdaki envanter.db dosyasını, konteyner içindeki veritabanı ile eşleştiriyoruz.
+      # Böylece konteyner kapansa bile verilerimiz güvende kalıyor.
+      - ./envanter.db:/app/envanter.db
+    restart: unless-stopped

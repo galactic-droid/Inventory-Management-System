@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Envanter Kontrol Paneli</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js Kütüphanesi -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 15px; }
+        .badge-status { font-size: 0.85rem; padding: 6px 10px; }
+        .table-container { background: white; border-radius: 15px; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-5 px-4">
+        <h2 class="text-dark fw-bold mb-4">📦 Envanter Sistemi</h2>
+        
+        <!-- ÖZET İSTATİSTİK KARTLARI -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 border-start border-primary border-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <p class="text-muted mb-1 small fw-bold">TOPLAM ÜRÜN ÇEŞİDİ</p>
+                                <h3 class="mb-0 fw-bold" id="stat-total-products">{{ total_products }}</h3>
+                            </div>
+                            <div class="fs-1">🏷️</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 border-start border-success border-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <p class="text-muted mb-1 small fw-bold">TOPLAM STOK ADEDİ</p>
+                                <h3 class="mb-0 fw-bold" id="stat-total-stock">{{ total_stock }}</h3>
+                            </div>
+                            <div class="fs-1">📦</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 border-start border-danger border-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <p class="text-muted mb-1 small fw-bold">KRİTİK DURUMDAKİLER</p>
+                                <h3 class="mb-0 fw-bold text-danger" id="stat-total-critical">{{ total_critical }}</h3>
+                            </div>
+                            <div class="fs-1">🚨</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-5">
+            <div class="card-body p-4">
+                <h5 class="card-title mb-4 text-secondary border-bottom pb-2">Yeni Ürün Tanımla</h5>
+                <form id="addProductForm" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-bold">Ürün İsmi</label>
+                        <input type="text" class="form-control" id="name" required placeholder="Örn: Ofis Koltuğu">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-bold">Yeni Stok</label>
+                        <input type="number" class="form-control" id="stock" required min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-bold">Günlük Tüketim (Ort.)</label>
+                        <input type="number" step="0.1" class="form-control" id="beklenen_gunluk_satis" required min="0.1">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-bold">Tedarik (Gün)</label>
+                        <input type="number" class="form-control" id="lead_time" required min="1">
+                    </div>
+                    
+                    <!-- YENİ EKLENEN ÜRÜN DETAYLARI -->
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-bold">Birim Boyutu (m³)</label>
+                        <input type="number" step="0.01" class="form-control" id="size_m3" value="0" min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-bold">Paletteki Ürün Adedi</label>
+                        <input type="number" class="form-control" id="items_per_pallet" value="0" min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-bold">Birim Ağırlık (kg)</label>
+                        <input type="number" step="0.1" class="form-control" id="weight_kg" value="0" min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-bold">Tedarikçi Firma</label>
+                        <input type="text" class="form-control" id="supplier_name" placeholder="Örn: ABC A.Ş.">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-bold">Tedarikçi E-posta</label>
+                        <input type="email" class="form-control" id="supplier_email" placeholder="mail@firma.com">
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="has_expiry" onchange="document.getElementById('expiryDateContainer').style.display = this.checked ? 'block' : 'none'">
+                            <label class="form-check-label text-danger fw-bold small" for="has_expiry">SKT Takibi Yap (FIFO)</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3" id="expiryDateContainer" style="display: none;">
+                        <label class="form-label text-muted small fw-bold">İlk SKT Tarihi</label>
+                        <input type="date" class="form-control" id="expiry_date">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end ms-auto">
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm table-container">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 border-bottom-0">
+                <h5 class="mb-0 text-secondary">Mevcut Ürünler</h5>
+                <div class="d-flex gap-3 align-items-center">
+                    <a href="/warehouse-map" class="btn btn-sm btn-outline-secondary fw-bold">🏭 Depo Yönetimi</a>
+                    <button class="btn btn-sm btn-outline-success fw-bold" onclick="exportCSV()">⬇️ Dışa Aktar</button>
+                    <label class="btn btn-sm btn-outline-primary fw-bold mb-0" style="cursor: pointer;">
+                        ⬆️ İçe Aktar
+                        <input type="file" id="importCsvInput" accept=".csv" style="display: none;" onchange="importCSV(event)">
+                    </label>
+                    <div class="form-check form-switch mb-0" title="Sadece stoğu biten veya azalan ürünleri göster">
+                        <input class="form-check-input" type="checkbox" id="filterReorderToggle" style="cursor: pointer;">
+                        <label class="form-check-label text-danger fw-bold small" style="cursor: pointer;" for="filterReorderToggle">Kritik Stoklar</label>
+                    </div>
+                    <input type="text" id="searchInput" class="form-control" style="max-width: 250px;" placeholder="🔍 Ürün Ara...">
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <table id="productTable" class="table table-hover mb-0 align-middle">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4 py-3">Ürün</th>
+                            <th>Mevcut Stok</th>
+                            <th>Raf & Konum</th>
+                            <th>Tahmini Bitiş</th>
+                            <th>Durum Analizi</th>
+                            <th class="text-center">Hızlı Stok Çıkışı</th>
+                            <th class="text-center">Stok Ekle</th>
+                            <th class="text-center">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for group in grouped_products %}
+                        <tr class="group-header-row bg-light" data-group-index="{{ loop.index }}">
+                            <td colspan="8" class="border-bottom border-primary pt-3 pb-2">
+                                <span class="fw-bold fs-5 text-primary group-title">📦 {{ group.product_name }}</span>
+                                <span class="badge bg-secondary ms-2 fs-6" style="vertical-align: middle;">Toplam Stok: {{ group.total_stock }} Adet</span>
+                            </td>
+                        </tr>
+                        {% set group_loop_index = loop.index %}
+                        {% for item in group.product_list %}
+                        <tr class="main-row" data-group-index="{{ group_loop_index }}" data-needs-reorder="{{ 'true' if item.needs_reorder else 'false' }}" data-id="{{ item.product_id }}">
+                            <td class="ps-5 fw-bold text-secondary product-name" style="font-size: 0.9rem;">
+                                🏢 {{ item.supplier_name or 'Genel Tedarikçi' }}
+                            </td>
+                            <td><span class="badge bg-light text-dark border">{{ item.current_stock }} Adet</span></td>
+                            <td>
+                                <div class="d-flex flex-column gap-1">
+                                    {% for loc in item.shelf_locations %}
+                                        <span class="badge bg-info text-dark border border-info-subtle" style="font-size: 0.7rem;">{{ loc }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Atanmadı</span>
+                                    {% endfor %}
+                                </div>
+                                <div class="text-muted mt-1" style="font-size: 0.7rem; font-weight: bold;">
+                                    {{ item.total_pallets }} Palet ({{ item.items_per_pallet }} adet/palet) | {{ item.weight_kg }} kg | {{ item.size_m3 }} m³
+                                </div>
+                            </td>
+                            <td><span class="text-muted">{{ item.days_until_empty }} Gün</span></td>
+                            <td>
+                                {% if item.needs_reorder %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle badge-status">{{ item.message }}</span>
+                                {% else %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle badge-status">{{ item.message }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="input-group input-group-sm mx-auto" style="max-width: 160px;">
+                                    <input type="number" id="qty_{{ item.product_id }}" class="form-control text-center" value="1" min="1">
+                                    <button class="btn btn-warning fw-bold dispatch-btn" data-id="{{ item.product_id }}">Çıkış</button>
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <div class="input-group input-group-sm mx-auto" style="max-width: 180px; flex-direction: column; gap: 4px;">
+                                    <div class="d-flex w-100">
+                                        <input type="number" id="add_qty_{{ item.product_id }}" class="form-control text-center" value="1" min="1">
+                                        <button class="btn btn-success fw-bold add-stock-btn" data-id="{{ item.product_id }}" data-has-expiry="{{ 'true' if item.has_expiry_tracking else 'false' }}">Ekle</button>
+                                    </div>
+                                    {% if item.has_expiry_tracking %}
+                                        <input type="date" id="add_expiry_{{ item.product_id }}" class="form-control text-center w-100" style="font-size: 0.75rem;">
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                {% if item.needs_reorder and item.supplier_email %}
+                                    <a href="mailto:{{ item.supplier_email }}?subject={{ item.product_name }} Siparişi&body=Merhaba, depo kayıtlarımıza göre {{ item.product_name }} ürününün stoğu kritik seviyeye inmiştir. Lütfen yeni parti gönderimi için dönüş yapınız." class="btn btn-sm btn-warning text-dark fw-bold mb-1" title="Tedarikçiye Sipariş Maili Gönder">✉️ Mail</a>
+                                {% endif %}
+                                <button class="btn btn-sm btn-outline-primary product-chart-btn mb-1" data-id="{{ item.product_id }}" data-name="{{ item.product_name }}">📈 Grafik</button>
+                                <button class="btn btn-sm btn-outline-info log-btn mb-1" data-id="{{ item.product_id }}">📜 Geçmiş</button>
+                                <button class="btn btn-sm btn-outline-danger delete-btn" data-id="{{ item.product_id }}">🗑️ Sil</button>
+                            </td>
+                        </tr>
+                        {% if item.has_expiry_tracking %}
+                        <tr class="batch-row" id="batch_row_{{ item.product_id }}" style="background-color: #fafbfc;">
+                            <td colspan="8" class="pt-1 pb-2 px-4 border-bottom">
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    <span class="badge bg-secondary">SKT Partileri:</span>
+                                    {% for batch in item.batches %}
+                                        <span class="badge {% if '❌' in item.message %}bg-danger{% elif '⚠️' in item.message %}bg-warning text-dark{% else %}bg-light text-dark{% endif %} border">{{ batch.quantity }} Adet | SKT: {{ batch.expiry_date }}</span>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <!-- SAYFALAMA KONTROLLERİ EKLENDİ -->
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3 border-top">
+                <span class="text-muted small fw-bold" id="paginationInfo"></span>
+                <nav id="paginationControls"></nav>
+            </div>
+        </div>
+    </div>
+
+    <!-- DEPO YENİDEN DENGELEME LOG MODALI -->
+    <div class="modal fade" id="rebalanceLogModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning border-bottom-0">
+                    <h5 class="modal-title fw-bold text-dark">⚙️ Depo Yeniden Dengelendi!</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Depo verimliliğini artırmak için aşağıdaki ürünlerin konumları otomatik olarak güncellendi:</p>
+                    <ul class="list-group" id="rebalanceLogList">
+                        <!-- Loglar buraya JavaScript ile eklenecek -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST BİLDİRİMİ -->
+    <div class="toast-container position-fixed top-0 end-0 p-4" style="z-index: 1055;">
+        <div id="rebalanceToast" class="toast shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-warning text-dark border-bottom-0">
+                <strong class="me-auto">⚙️ Sistem Bildirimi</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Kapat"></button>
+            </div>
+            <div class="toast-body bg-white">
+                Depo yeniden dengelendi. <span id="rebalanceToastCount" class="fw-bold"></span> ürünün konumu güncellendi.
+                <div class="mt-2 pt-2 border-top">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rebalanceLogModal">Değişiklikleri Gör</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- GEÇMİŞ (LOG) EKRANI (MODAL) -->
+    <div class="modal fade" id="logModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-light border-bottom-0">
+                    <h5 class="modal-title fw-bold text-secondary">📜 Ürün Hareket Geçmişi</h5>
+                    <button type="btn" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <table class="table table-striped mb-0 align-middle" style="font-size: 0.9rem;">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="ps-3">Tarih</th>
+                                <th>İşlem Tipi</th>
+                                <th>Açıklama</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logTableBody">
+                            <!-- Loglar buraya JavaScript ile eklenecek -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SATIŞ GRAFİĞİ EKRANI (MODAL) -->
+    <div class="modal fade" id="chartModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-light border-bottom-0">
+                    <h5 class="modal-title fw-bold text-secondary" id="chartModalTitle">📈 Satış Trendi</h5>
+                    <button type="btn" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <canvas id="salesChart" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JavaScript (Modal için gerekli) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // --- YENİ: Otomatik Yeniden Dengeleme Sonuçlarını Gösteren Yardımcı Fonksiyon ---
+        async function handleResponse(res) {
+            if (res.ok) {
+                const data = await res.json();
+                // Dengeleme yapıldıysa logları tarayıcı hafızasına al (sayfa yenilenince Toast göstermek için)
+                if (data.rebalance_log && data.rebalance_log.length > 0) {
+                    sessionStorage.setItem('rebalanceLogs', JSON.stringify(data.rebalance_log));
+                }
+                window.location.reload(); // Değişikliklerin görünmesi için sayfayı her halükarda yenile
+            } else {
+                const err = await res.json();
+                alert("HATA: " + (err.detail || "İşlem gerçekleştirilemedi."));
+            }
+        }
+
+        // 1. Ürün Ekleme İşlemi
+        document.getElementById('addProductForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('name').value,
+                stock_quantity: parseInt(document.getElementById('stock').value),
+                beklenen_gunluk_satis: parseFloat(document.getElementById('beklenen_gunluk_satis').value),
+                lead_time_days: parseInt(document.getElementById('lead_time').value),
+                size_m3: parseFloat(document.getElementById('size_m3').value) || 0,
+                items_per_pallet: parseInt(document.getElementById('items_per_pallet').value) || 0,
+                weight_kg: parseFloat(document.getElementById('weight_kg').value) || 0,
+                has_expiry_tracking: document.getElementById('has_expiry').checked,
+                expiry_date: document.getElementById('has_expiry').checked ? document.getElementById('expiry_date').value : null,
+                supplier_name: document.getElementById('supplier_name').value || "",
+                supplier_email: document.getElementById('supplier_email').value || ""
+            };
+            
+            if (data.has_expiry_tracking && !data.expiry_date) {
+                return alert("Lütfen SKT takibi için bir tarih seçin!");
+            }
+
+            try {
+                const res = await fetch('/products/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                await handleResponse(res); // Sayfayı yenilemek yerine yeni yardımcı fonksiyonu çağır
+            } catch (err) { alert("Sunucu hatası: Bağlantı kurulamadı."); }
+        });
+
+        // 8. İçe ve Dışa Aktarma İşlemleri
+        function exportCSV() {
+            window.location.href = '/export/csv';
+        }
+
+        async function importCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append("file", file);
+            
+            try {
+                const res = await fetch('/import/csv', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (res.ok) {
+                    alert("✅ CSV dosyası başarıyla sisteme aktarıldı!");
+                    window.location.reload();
+                } else {
+                    const err = await res.json();
+                    alert("❌ İçe aktarma hatası: " + (err.detail || "Sunucu hatası"));
+                }
+            } catch (err) { alert("❌ Sunucuya ulaşılamadı."); }
+            // Aynı dosyayı tekrar seçebilmek için dosya seçimini temizle
+            event.target.value = '';
+        }
+
+        // --- YENİ: Birleştirilmiş Event Listener (Performans ve Okunabilirlik için) ---
+        let salesChartInstance = null;
+        document.addEventListener('click', async (e) => {
+            const target = e.target;
+            const closest = (selector) => target.closest(selector);
+
+            // Stok Çıkışı
+            if (target.classList.contains('dispatch-btn')) {
+                const pid = target.getAttribute('data-id');
+                const qtyInput = document.getElementById('qty_' + pid);
+                const val = parseInt(qtyInput.value);
+
+                if (!val || val <= 0) return alert("Lütfen geçerli bir çıkış miktarı girin!");
+
+                try {
+                    const res = await fetch(`/products/${pid}/dispatch`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ quantity: val })
+                    });
+                    await handleResponse(res);
+                } catch (err) { alert("Sunucuya ulaşılamadı!"); }
+            }
+            // Stok Ekleme
+            else if (target.classList.contains('add-stock-btn')) {
+                const pid = target.getAttribute('data-id');
+                const qtyInput = document.getElementById('add_qty_' + pid);
+                const val = parseInt(qtyInput.value);
+                const hasExpiry = target.getAttribute('data-has-expiry') === 'true';
+                let expiryDateVal = null;
+
+                if (!val || val <= 0) return alert("Lütfen geçerli bir ekleme miktarı girin!");
+                
+                if (hasExpiry) {
+                    expiryDateVal = document.getElementById('add_expiry_' + pid).value;
+                    if (!expiryDateVal) return alert("Bu ürün SKT takiplidir. Lütfen eklenecek partinin SKT tarihini seçin!");
+                }
+
+                try {
+                    const res = await fetch(`/products/${pid}/add_stock`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ quantity: val, expiry_date: expiryDateVal })
+                    });
+                    
+                    if (res.ok) window.location.reload();
+                    else { const err = await res.json(); alert("HATA: " + (err.detail || "Stok eklenemedi.")); }
+                } catch (err) { alert("Sunucuya ulaşılamadı!"); }
+            }
+            // Ürün Silme
+            else if (closest('.delete-btn')) {
+                const pid = closest('.delete-btn').getAttribute('data-id');
+                if (confirm("Bu ürünü ve tüm satış geçmişini silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
+                    try {
+                        const res = await fetch(`/products/${pid}`, { method: 'DELETE' });
+                        await handleResponse(res);
+                    } catch (err) { alert("Sunucuya ulaşılamadı!"); }
+                }
+            }
+            // Geçmiş (Log) Görüntüleme
+            else if (closest('.log-btn')) {
+                const pid = closest('.log-btn').getAttribute('data-id');
+                try {
+                    const res = await fetch(`/products/${pid}/logs`);
+                    if (res.ok) {
+                        const logs = await res.json();
+                        const tbody = document.getElementById('logTableBody');
+                        tbody.innerHTML = '';
+                        logs.forEach(log => {
+                            const dateStr = new Date(log.created_at).toLocaleString('tr-TR');
+                            tbody.innerHTML += `<tr><td class="ps-3">${dateStr}</td><td><span class="badge bg-secondary">${log.action_type}</span></td><td>${log.description}</td></tr>`;
+                        });
+                        if(logs.length === 0) tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">Bu ürüne ait henüz bir hareket kaydı yok.</td></tr>';
+                        
+                        new bootstrap.Modal(document.getElementById('logModal')).show();
+                    } else { alert("Geçmiş alınırken bir hata oluştu."); }
+                } catch (err) { alert("Sunucuya ulaşılamadı!"); }
+            }
+            // Satış Grafiği
+            else if (closest('.product-chart-btn')) {
+                e.preventDefault();
+                const chartBtn = closest('.product-chart-btn');
+                const pid = chartBtn.getAttribute('data-id');
+                const pName = chartBtn.getAttribute('data-name');
+                
+                document.getElementById('chartModalTitle').textContent = `📈 ${pName} - Son 7 Günlük Satış Trendi`;
+                
+                try {
+                    const res = await fetch(`/products/${pid}/sales_trend`);
+                    if (res.ok) {
+                        const chartData = await res.json();
+                        const ctx = document.getElementById('salesChart').getContext('2d');
+                        
+                        if (salesChartInstance) {
+                            salesChartInstance.destroy();
+                        }
+                        
+                        salesChartInstance = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: chartData.labels,
+                                datasets: [{
+                                    label: 'Satılan Miktar (Adet)',
+                                    data: chartData.data,
+                                    borderColor: '#0d6efd',
+                                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                                    borderWidth: 2,
+                                    fill: true,
+                                    tension: 0.3, // Çizgiye tatlı bir yumuşaklık verir
+                                    pointBackgroundColor: '#0d6efd'
+                                }]
+                            },
+                            options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+                        });
+                        
+                        new bootstrap.Modal(document.getElementById('chartModal')).show();
+                    } else { alert("Grafik verisi alınamadı."); }
+                } catch (err) { alert("Sunucuya ulaşılamadı."); }
+            }
+        });
+
+        // 6. Özet İstatistikleri Otomatik Güncelleme (Canlı Veri)
+        async function fetchStats() {
+            try {
+                const res = await fetch('/api/stats');
+                if (res.ok) {
+                    const data = await res.json();
+                    // Alınan verilerle HTML içindeki sayıları değiştir
+                    document.getElementById('stat-total-products').textContent = data.total_products;
+                    document.getElementById('stat-total-stock').textContent = data.total_stock;
+                    document.getElementById('stat-total-critical').textContent = data.total_critical;
+                }
+            } catch (err) {
+                console.error("İstatistikler alınırken hata oluştu:", err);
+            }
+        }
+        // Bu fonksiyonu her 5000 milisaniyede (5 saniyede) bir tetikle
+        setInterval(fetchStats, 5000);
+
+        // 4. Sayfalama (Pagination) ve Arama İşlemleri
+        let currentPage = 1;
+        const rowsPerPage = 5; // Her sayfada gösterilecek ürün sayısını buradan değiştirebilirsiniz (Örn: 10)
+
+        function renderTable() {
+            const filterText = document.getElementById('searchInput').value.toLowerCase();
+            const showOnlyCritical = document.getElementById('filterReorderToggle').checked;
+            const groupHeaders = document.querySelectorAll('#productTable tbody tr.group-header-row');
+            let filteredGroups = [];
+            
+            // 1. Adım: Tüm satırları arama metnine ve kritik filtreye göre gruplayarak filtrele
+            groupHeaders.forEach(header => {
+                const groupIndex = header.getAttribute('data-group-index');
+                const productName = header.querySelector('.group-title').textContent.toLowerCase();
+                const mainRows = document.querySelectorAll(`tr.main-row[data-group-index="${groupIndex}"]`);
+                
+                let groupMatchesSearch = productName.includes(filterText);
+                let visibleMainRows = [];
+                
+                mainRows.forEach(row => {
+                    const isCritical = row.getAttribute('data-needs-reorder') === 'true';
+                    const supplierName = row.querySelector('.product-name').textContent.toLowerCase();
+                    
+                    const matchesSearch = groupMatchesSearch || supplierName.includes(filterText);
+                    const matchesCritical = !showOnlyCritical || isCritical;
+                    
+                    if (matchesSearch && matchesCritical) {
+                        visibleMainRows.push(row);
+                    }
+                });
+                
+                // Eğer grup aramaya uyuyorsa veya altındaki bir tedarikçi uyuyorsa göster
+                if (visibleMainRows.length > 0) {
+                    filteredGroups.push({ header: header, rows: visibleMainRows });
+                }
+            });
+            
+            const totalItems = filteredGroups.length;
+            const totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
+            
+            if (currentPage > totalPages) currentPage = totalPages;
+            
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            
+            // 2. Adım: Tüm satırları gizle
+            document.querySelectorAll('#productTable tbody tr').forEach(r => r.style.display = 'none');
+            
+            // 3. Adım: Sadece aktif sayfaya denk gelen grup satırlarını göster
+            filteredGroups.forEach((group, index) => {
+                if (index >= start && index < end) {
+                    group.header.style.display = '';
+                    group.rows.forEach(row => {
+                        row.style.display = '';
+                        const pid = row.getAttribute('data-id');
+                        const batchRow = document.getElementById('batch_row_' + pid);
+                        if(batchRow) batchRow.style.display = '';
+                    });
+                }
+            });
+            
+            // 4. Adım: Alt kısımdaki sayfalama butonlarını güncelle
+            renderPagination(totalPages, totalItems);
+        }
+
+        function renderPagination(totalPages, totalItems) {
+            const paginationContainer = document.getElementById('paginationControls');
+            const paginationInfo = document.getElementById('paginationInfo');
+            
+            if (totalItems === 0) {
+                paginationInfo.textContent = "Eşleşen ürün bulunamadı.";
+                paginationContainer.innerHTML = "";
+                return;
+            }
+
+            const startItem = (currentPage - 1) * rowsPerPage + 1;
+            const endItem = Math.min(currentPage * rowsPerPage, totalItems);
+            paginationInfo.textContent = `Toplam ${totalItems} üründen ${startItem}-${endItem} arası gösteriliyor.`;
+            
+            let html = '<ul class="pagination pagination-sm m-0">';
+            html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">Önceki</a></li>`;
+            for (let i = 1; i <= totalPages; i++) {
+                html += `<li class="page-item ${currentPage === i ? 'active' : ''}"><a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a></li>`;
+            }
+            html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">Sonraki</a></li>`;
+            html += '</ul>';
+            
+            paginationContainer.innerHTML = html;
+        }
+
+        function changePage(page) {
+            currentPage = page;
+            renderTable();
+        }
+
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            currentPage = 1; // Yeni arama yapıldığında her zaman 1. sayfaya dön
+            renderTable();
+        });
+
+        document.getElementById('filterReorderToggle').addEventListener('change', function() {
+            currentPage = 1; // Filtre değiştiğinde 1. sayfaya dön
+            renderTable();
+        });
+
+        // Sayfa ilk yüklendiğinde tabloyu hesapla ve sayfala
+        document.addEventListener('DOMContentLoaded', () => {
+            renderTable();
+            
+            // Eğer sayfa yenilenmeden önce bir dengeleme işlemi yapıldıysa Toast bildirimini göster
+            const logsData = sessionStorage.getItem('rebalanceLogs');
+            if (logsData) {
+                const logs = JSON.parse(logsData);
+                document.getElementById('rebalanceToastCount').textContent = logs.length;
+                
+                // Modalı loglarla doldur (Kullanıcı "Değişiklikleri Gör" derse hazır olsun)
+                const logList = document.getElementById('rebalanceLogList');
+                logList.innerHTML = '';
+                logs.forEach(log => {
+                    logList.innerHTML += `<li class="list-group-item">${log}</li>`;
+                });
+                
+                // Toast'ı göster
+                const toastEl = document.getElementById('rebalanceToast');
+                const toast = new bootstrap.Toast(toastEl, { delay: 6000 });
+                toast.show();
+                
+                // Hafızayı temizle ki her sayfayı yenilediğimizde çıkmasın
+                sessionStorage.removeItem('rebalanceLogs');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+# Sanal ortam ve Python önbellek dosyaları
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Veritabanı dosyaları (GitHub'a boş gitmesi daha iyidir)
+*.db
+envanter.db

@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+*.pyc
+.git/
+# Veritabanını imajın içine kopyalamıyoruz ki verilerimiz sıfırlanmasın
+envanter.db

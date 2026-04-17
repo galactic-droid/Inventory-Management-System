@@ -48,7 +48,7 @@ Sistem temel olarak iki ana model üzerine kuruludur:
     ```
 
 3.  **Test Verilerini Yükleyin (Opsiyonel):**
-    Sistemi hızlıca test etmek için örnek depo hiyerarşisi ve ürünleri (teknoloji, mobilya, soğuk zincir vb.) içeren başlangıç betiğini çalıştırabilirsiniz.
+    Sistemi hızlıca test etmek için örnek depo hiyerarşisi ve ürünleri (teknoloji, mobilya, soğuk zincir vb.) içeren başlangıç scriptini çalıştırabilirsiniz.
     ```bash
     docker exec -it envanter-app python seed.py
     ```

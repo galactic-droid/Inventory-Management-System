@@ -108,6 +108,12 @@
                             <label class="form-check-label text-danger fw-bold small" for="has_expiry">SKT Takibi Yap (FIFO)</label>
                         </div>
                     </div>
+                    <div class="col-md-3">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="is_cold_chain">
+                            <label class="form-check-label text-info fw-bold small" for="is_cold_chain">❄️ Soğuk Zincir Ürünü</label>
+                        </div>
+                    </div>
                     <div class="col-md-3" id="expiryDateContainer" style="display: none;">
                         <label class="form-label text-muted small fw-bold">İlk SKT Tarihi</label>
                         <input type="date" class="form-control" id="expiry_date">
@@ -154,7 +160,7 @@
                         {% for group in grouped_products %}
                         <tr class="group-header-row bg-light" data-group-index="{{ loop.index }}">
                             <td colspan="8" class="border-bottom border-primary pt-3 pb-2">
-                                <span class="fw-bold fs-5 text-primary group-title">📦 {{ group.product_name }}</span>
+                                <span class="fw-bold fs-5 text-primary group-title">{% if group.product_list[0].is_cold_chain %}❄️{% else %}📦{% endif %} {{ group.product_name }}</span>
                                 <span class="badge bg-secondary ms-2 fs-6" style="vertical-align: middle;">Toplam Stok: {{ group.total_stock }} Adet</span>
                             </td>
                         </tr>
@@ -203,8 +209,10 @@
                                 </div>
                             </td>
                             <td class="text-center">
-                                {% if item.needs_reorder and item.supplier_email %}
-                                    <a href="mailto:{{ item.supplier_email }}?subject={{ item.product_name }} Siparişi&body=Merhaba, depo kayıtlarımıza göre {{ item.product_name }} ürününün stoğu kritik seviyeye inmiştir. Lütfen yeni parti gönderimi için dönüş yapınız." class="btn btn-sm btn-warning text-dark fw-bold mb-1" title="Tedarikçiye Sipariş Maili Gönder">✉️ Mail</a>
+                                {% if item.supplier_email %}
+                                <a href="mailto:{{ item.supplier_email }}?subject={{ (item.product_name ~ ' Siparişi') | urlencode }}&body={{ ('Merhaba, depo kayıtlarımıza göre ' ~ item.product_name ~ ' ürününün stoğu kritik seviyeye inmiştir. Lütfen yeni parti gönderimi için dönüş yapınız.') | urlencode }}" class="btn btn-sm {% if item.needs_reorder %}btn-warning text-dark{% else %}btn-outline-secondary{% endif %} fw-bold mb-1" title="Tedarikçiye Mail Gönder">✉️ Mail</a>
+                                {% else %}
+                                <button class="btn btn-sm btn-outline-secondary mb-1" disabled title="Email girilmedi">✉️ Mail</button>
                                 {% endif %}
                                 <button class="btn btn-sm btn-outline-primary product-chart-btn mb-1" data-id="{{ item.product_id }}" data-name="{{ item.product_name }}">📈 Grafik</button>
                                 <button class="btn btn-sm btn-outline-info log-btn mb-1" data-id="{{ item.product_id }}">📜 Geçmiş</button>
@@ -257,13 +265,13 @@
     <!-- TOAST BİLDİRİMİ -->
     <div class="toast-container position-fixed top-0 end-0 p-4" style="z-index: 1055;">
         <div id="rebalanceToast" class="toast shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header bg-warning text-dark border-bottom-0">
-                <strong class="me-auto">⚙️ Sistem Bildirimi</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Kapat"></button>
+                <div class="toast-header bg-dark text-white border-bottom-0">
+                    <strong class="me-auto">🔔 Sistem Bildirimi</strong>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Kapat"></button>
             </div>
-            <div class="toast-body bg-white">
-                Depo yeniden dengelendi. <span id="rebalanceToastCount" class="fw-bold"></span> ürünün konumu güncellendi.
-                <div class="mt-2 pt-2 border-top">
+                <div class="toast-body bg-white text-dark">
+                    <span id="toastBodyText">İşlem başarılı.</span>
+                    <div class="mt-2 pt-2 border-top" id="toastActionBtn" style="display: none;">
                     <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rebalanceLogModal">Değişiklikleri Gör</button>
                 </div>
             </div>
@@ -315,15 +323,15 @@
     <!-- Bootstrap JavaScript (Modal için gerekli) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- YENİ: Otomatik Yeniden Dengeleme Sonuçlarını Gösteren Yardımcı Fonksiyon ---
+        // --- YENİ: İşlem Sonuçlarını Gösteren Yardımcı Fonksiyon ---
         async function handleResponse(res) {
             if (res.ok) {
                 const data = await res.json();
-                // Dengeleme yapıldıysa logları tarayıcı hafızasına al (sayfa yenilenince Toast göstermek için)
+                sessionStorage.setItem('toastMessage', data.mesaj || "İşlem başarıyla tamamlandı.");
                 if (data.rebalance_log && data.rebalance_log.length > 0) {
                     sessionStorage.setItem('rebalanceLogs', JSON.stringify(data.rebalance_log));
                 }
-                window.location.reload(); // Değişikliklerin görünmesi için sayfayı her halükarda yenile
+                window.location.reload(); 
             } else {
                 const err = await res.json();
                 alert("HATA: " + (err.detail || "İşlem gerçekleştirilemedi."));
@@ -344,7 +352,8 @@
                 has_expiry_tracking: document.getElementById('has_expiry').checked,
                 expiry_date: document.getElementById('has_expiry').checked ? document.getElementById('expiry_date').value : null,
                 supplier_name: document.getElementById('supplier_name').value || "",
-                supplier_email: document.getElementById('supplier_email').value || ""
+                supplier_email: document.getElementById('supplier_email').value || "",
+                is_cold_chain: document.getElementById('is_cold_chain').checked
             };
             
             if (data.has_expiry_tracking && !data.expiry_date) {

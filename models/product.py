@@ -17,6 +17,7 @@ class Location(Base):
     # Sadece en alt seviyedeki (Leaf Node) lokasyonlar için kapasite kullanılır
     max_volume_m3 = Column(Float, default=0.0)
     max_weight_kg = Column(Float, default=0.0)
+    is_cold_chain = Column(Boolean, default=False) # Soğuk zincir lokasyonu mu?
 
     sub_locations = relationship("Location", back_populates="parent", cascade="all, delete-orphan")
     parent = relationship("Location", back_populates="sub_locations", remote_side=[id])
@@ -60,6 +61,7 @@ class Product(Base):
     has_expiry_tracking = Column(Boolean, default=False) # Bu ürün için SKT takibi yapılıyor mu?
     supplier_name = Column(String, default="") # Tedarikçi Firma Adı
     supplier_email = Column(String, default="") # Tedarikçi E-posta Adresi
+    is_cold_chain = Column(Boolean, default=False) # Soğuk zincir ürünü mü?
 
 class SaleLog(Base):
     """Yapılan her satışı kaydeden tablo."""

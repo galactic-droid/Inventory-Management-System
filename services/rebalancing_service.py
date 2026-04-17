@@ -81,6 +81,10 @@ def rebalance_warehouse(db: Session):
 
         # Bu ürün için yeni yerleşimler oluşturulacak
         for loc in all_leaf_locations:
+            # Soğuk zincir kuralı: Ürün soğuk zincirse sadece soğuk rafa, değilse normal rafa konur
+            if getattr(loc, "is_cold_chain", False) != getattr(product, "is_cold_chain", False):
+                continue
+                
             if quantity_to_place <= 0:
                 break
 

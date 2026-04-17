@@ -48,7 +48,8 @@ def manage_placements(product: Product, db: Session):
             def get_empty_leaf_locations(loc, empty_list):
                 if not loc.sub_locations:
                     if loc.max_volume_m3 > 0 and loc.id not in occupied_location_ids:
-                        empty_list.append(loc)
+                        if getattr(loc, "is_cold_chain", False) == getattr(product, "is_cold_chain", False):
+                            empty_list.append(loc)
                 else:
                     for sub in loc.sub_locations:
                         get_empty_leaf_locations(sub, empty_list)
@@ -188,7 +189,8 @@ def calculate_stock_status(product):
         "has_expiry_tracking": getattr(product, 'has_expiry_tracking', False),
         "batches": batch_list,
         "supplier_name": getattr(product, 'supplier_name', ""),
-        "supplier_email": getattr(product, 'supplier_email', "")
+        "supplier_email": getattr(product, 'supplier_email', ""),
+        "is_cold_chain": getattr(product, 'is_cold_chain', False)
     }
 
 def update_daily_consumption(product: Product, db: Session):

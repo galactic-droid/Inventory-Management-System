@@ -53,6 +53,12 @@
                         <label class="form-label text-muted small fw-bold">Max Ağırlık (kg)*</label>
                         <input type="number" step="1" class="form-control" id="max_weight_kg" value="0">
                     </div>
+                    <div class="col-md-3">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="is_cold_chain">
+                            <label class="form-check-label text-info fw-bold small" for="is_cold_chain">❄️ Soğuk Zincir Lokasyonu</label>
+                        </div>
+                    </div>
                     <div class="col-12 mt-2">
                         <small class="text-muted">* Sadece en alt seviyedeki (Raf Gözü vb.) lokasyonlar için kapasite giriniz. Üst gruplar otomatik toplanır.</small>
                     </div>
@@ -74,7 +80,7 @@
                             {% elif loc.location_type == 'ZONE' %}📍
                             {% elif loc.location_type == 'AISLE' %}🛤️
                             {% elif loc.location_type == 'RACK' %}🗄️
-                            {% else %}📦{% endif %}
+                            {% else %}{% if loc.is_cold_chain %}❄️{% else %}📦{% endif %}{% endif %}
                             {{ loc.name }} <small class="{% if loc.parent_id == None %}text-white-50{% else %}text-muted{% endif %} ms-2 fw-normal">({{ loc.location_type }})</small>
                         </span>
                     </div>
@@ -175,13 +181,13 @@
     <!-- TOAST BİLDİRİMİ -->
     <div class="toast-container position-fixed top-0 end-0 p-4" style="z-index: 1055;">
         <div id="rebalanceToast" class="toast shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header bg-warning text-dark border-bottom-0">
-                <strong class="me-auto">⚙️ Sistem Bildirimi</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Kapat"></button>
+            <div class="toast-header bg-dark text-white border-bottom-0">
+                <strong class="me-auto">🔔 Sistem Bildirimi</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Kapat"></button>
             </div>
-            <div class="toast-body bg-white">
-                Depo yeniden dengelendi. <span id="rebalanceToastCount" class="fw-bold"></span> ürünün konumu güncellendi.
-                <div class="mt-2 pt-2 border-top">
+            <div class="toast-body bg-white text-dark">
+                <span id="toastBodyText">İşlem başarılı.</span>
+                <div class="mt-2 pt-2 border-top" id="toastActionBtn" style="display: none;">
                     <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#rebalanceLogModal">Değişiklikleri Gör</button>
                 </div>
             </div>
@@ -194,6 +200,7 @@
         async function handleResponse(res) {
             if (res.ok) {
                 const data = await res.json();
+                sessionStorage.setItem('toastMessage', data.mesaj || "İşlem başarıyla tamamlandı.");
                 if (data.rebalance_log && data.rebalance_log.length > 0) {
                     sessionStorage.setItem('rebalanceLogs', JSON.stringify(data.rebalance_log));
                 }
@@ -205,21 +212,31 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            const msg = sessionStorage.getItem('toastMessage');
             const logsData = sessionStorage.getItem('rebalanceLogs');
-            if (logsData) {
-                const logs = JSON.parse(logsData);
-                document.getElementById('rebalanceToastCount').textContent = logs.length;
-                
-                const logList = document.getElementById('rebalanceLogList');
-                logList.innerHTML = '';
-                logs.forEach(log => {
-                    logList.innerHTML += `<li class="list-group-item">${log}</li>`;
-                });
+            
+            if (msg || logsData) {
+                const toastBody = document.getElementById('toastBodyText');
+                if (logsData) {
+                    const logs = JSON.parse(logsData);
+                    toastBody.innerHTML = `✅ ${msg || "İşlem başarılı."}<br>⚙️ Depo yeniden dengelendi (${logs.length} değişiklik).`;
+                    
+                    const logList = document.getElementById('rebalanceLogList');
+                    logList.innerHTML = '';
+                    logs.forEach(log => {
+                        logList.innerHTML += `<li class="list-group-item">${log}</li>`;
+                    });
+                    document.getElementById('toastActionBtn').style.display = 'block';
+                } else {
+                    toastBody.innerHTML = `✅ ${msg}`;
+                    document.getElementById('toastActionBtn').style.display = 'none';
+                }
                 
                 const toastEl = document.getElementById('rebalanceToast');
-                const toast = new bootstrap.Toast(toastEl, { delay: 6000 });
+                const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
                 toast.show();
                 
+                sessionStorage.removeItem('toastMessage');
                 sessionStorage.removeItem('rebalanceLogs');
             }
         });
@@ -231,7 +248,8 @@
             location_type: document.getElementById('location_type').value,
             parent_id: document.getElementById('parent_id').value ? parseInt(document.getElementById('parent_id').value) : null,
                 max_volume_m3: parseFloat(document.getElementById('max_volume_m3').value),
-            max_weight_kg: parseFloat(document.getElementById('max_weight_kg').value)
+            max_weight_kg: parseFloat(document.getElementById('max_weight_kg').value),
+            is_cold_chain: document.getElementById('is_cold_chain').checked
             };
 
             try {

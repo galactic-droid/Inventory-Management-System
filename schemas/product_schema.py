@@ -19,6 +19,7 @@ class ProductCreate(BaseModel):
     expiry_date: date | None = None
     supplier_name: str = ""
     supplier_email: str = ""
+    is_cold_chain: bool = False
 
 # Kullanıcıya cevap olarak döneceğimiz bilgiler (id dahil)
 class ProductResponse(ProductCreate):
@@ -51,6 +52,7 @@ class LocationBase(BaseModel):
     parent_id: int | None = None
     max_volume_m3: float = 0.0
     max_weight_kg: float = 0.0
+    is_cold_chain: bool = False
 
 class LocationCreate(LocationBase):
     pass

@@ -56,6 +56,7 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
         existing_product.has_expiry_tracking = product.has_expiry_tracking
         existing_product.supplier_name = product.supplier_name
         existing_product.supplier_email = product.supplier_email
+        existing_product.is_cold_chain = product.is_cold_chain
         
         # HATA DÜZELTİLDİ: Değeri körü körüne ezmek yerine, servisin gerçek satışlara 
         # veya beklentiye bakarak doğru değeri (Soğuk Başlangıç mantığıyla) hesaplamasını sağlıyoruz.
@@ -94,7 +95,8 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
             weight_kg=product.weight_kg,
             has_expiry_tracking=product.has_expiry_tracking,
             supplier_name=product.supplier_name,
-            supplier_email=product.supplier_email
+            supplier_email=product.supplier_email,
+            is_cold_chain=product.is_cold_chain
         )
         db.add(new_product)
         db.commit()
@@ -288,13 +290,13 @@ def export_csv(db: Session = Depends(get_db)):
     output = io.StringIO()
     writer = csv.writer(output)
     # Sütun başlıkları
-    writer.writerow(["Ürün İsmi", "Mevcut Stok", "Günlük Tüketim (Ort)", "Tedarik Süresi (Gün)", "Birim Boyutu (m3)", "Birim Paletteki Ürün Sayısı", "Toplam Palet", "Birim Ağırlık (kg)", "Tedarikçi Adı", "Tedarikçi Email"])
+    writer.writerow(["Ürün İsmi", "Mevcut Stok", "Günlük Tüketim (Ort)", "Tedarik Süresi (Gün)", "Birim Boyutu (m3)", "Birim Paletteki Ürün Sayısı", "Toplam Palet", "Birim Ağırlık (kg)", "Tedarikçi Adı", "Tedarikçi Email", "Soğuk Zincir mi?"])
     
     for p in products:
         total_pallets = math.ceil(p.stock_quantity / p.items_per_pallet) if p.items_per_pallet and p.stock_quantity > 0 else 0
         writer.writerow([
             p.name, p.stock_quantity, p.estimated_daily_consumption, p.lead_time_days, 
-            p.size_m3, p.items_per_pallet, total_pallets, p.weight_kg, p.supplier_name, p.supplier_email
+            p.size_m3, p.items_per_pallet, total_pallets, p.weight_kg, p.supplier_name, p.supplier_email, "Evet" if getattr(p, "is_cold_chain", False) else "Hayır"
         ])
         
     output.seek(0)
@@ -325,6 +327,7 @@ def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
             weight = float(row.get("Birim Ağırlık (kg)", 0.0))
             supplier_n = row.get("Tedarikçi Adı", "")
             supplier_e = row.get("Tedarikçi Email", "")
+            is_cold = str(row.get("Soğuk Zincir mi?", "")).strip().lower() in ["evet", "true", "1", "e"]
         except ValueError:
             continue # Sayısal olmayan satırları atla
             
@@ -341,6 +344,7 @@ def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
             existing_product.weight_kg = weight
             existing_product.supplier_name = supplier_n
             existing_product.supplier_email = supplier_e
+            existing_product.is_cold_chain = is_cold
             inventory_service.manage_placements(existing_product, db)
             
             log_desc = f"CSV içe aktarımı ile {stock} adet eklendi. Yeni stok: {existing_product.stock_quantity}."
@@ -352,7 +356,8 @@ def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
                 name=name, stock_quantity=stock, lead_time_days=lead_time,
                 initial_expected_daily_consumption=consumption, estimated_daily_consumption=consumption,
                 size_m3=size, items_per_pallet=pallet, weight_kg=weight,
-                supplier_name=supplier_n, supplier_email=supplier_e
+                supplier_name=supplier_n, supplier_email=supplier_e,
+                is_cold_chain=is_cold
             )
             db.add(new_product)
             db.commit() # ID'nin oluşması için commit

@@ -1,9 +1,12 @@
-# Sanal ortam ve Python önbellek dosyaları
+# Veritabanı ve Veri Klasörleri
+data/
+*.db
+*.sqlite
+
+# Python ve Sanal Ortam
 venv/
 __pycache__/
 *.pyc
-.env
 
-# Veritabanı dosyaları (GitHub'a boş gitmesi daha iyidir)
-*.db
-envanter.db
+# Çevresel Değişkenler
+.env

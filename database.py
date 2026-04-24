@@ -1,8 +1,12 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+import os
 
-# SQLite veritabanı dosyamızın adı
-SQLALCHEMY_DATABASE_URL = "sqlite:///./envanter.db"
+# Veritabanının tutulacağı klasörü oluştur (Docker çakışmalarını önler)
+os.makedirs("./data", exist_ok=True)
+
+# SQLite veritabanı dosyamızın adı ve yeni yolu
+SQLALCHEMY_DATABASE_URL = "sqlite:///./data/envanter.db"
 
 # Veritabanı motorunu oluşturuyoruz
 engine = create_engine(

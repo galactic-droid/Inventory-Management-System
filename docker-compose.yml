@@ -5,7 +5,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Kendi bilgisayarımızdaki envanter.db dosyasını, konteyner içindeki veritabanı ile eşleştiriyoruz.
-      # Böylece konteyner kapansa bile verilerimiz güvende kalıyor.
-      - ./envanter.db:/app/envanter.db
+      # Sadece bir klasörü (data) eşleştiriyoruz. 
+      # Böylece sistem ilk açıldığında boş bir veritabanı dosyasını kendisi otomatik oluşturacak.
+      - ./data:/app/data
     restart: unless-stopped

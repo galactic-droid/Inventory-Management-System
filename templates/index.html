@@ -7,6 +7,7 @@
     <!-- Chart.js Kütüphanesi -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        html { font-size: 85%; } /* Tüm sayfanın (yazılar, butonlar, ikonlar, boşluklar) boyutunu %85'e düşürür. */
         body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card { border: none; border-radius: 15px; }
         .badge-status { font-size: 0.85rem; padding: 6px 10px; }
@@ -142,8 +143,8 @@
                     <input type="text" id="searchInput" class="form-control" style="max-width: 250px;" placeholder="🔍 Ürün Ara...">
                 </div>
             </div>
-            <div class="card-body p-0">
-                <table id="productTable" class="table table-hover mb-0 align-middle">
+            <div class="card-body p-0 table-responsive">
+                <table id="productTable" class="table table-hover table-sm mb-0 align-middle">
                     <thead class="bg-light">
                         <tr>
                             <th class="ps-4 py-3">Ürün</th>

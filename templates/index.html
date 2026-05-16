@@ -7,7 +7,7 @@
     <!-- Chart.js Kütüphanesi -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        html { font-size: 85%; } /* Tüm sayfanın (yazılar, butonlar, ikonlar, boşluklar) boyutunu %85'e düşürür. */
+        html { font-size: 85%; } /* Okunabilirliği artırmak için oran %90'a çekildi. */
         body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card { border: none; border-radius: 15px; }
         .badge-status { font-size: 0.85rem; padding: 6px 10px; }
@@ -82,6 +82,17 @@
                         <input type="number" class="form-control" id="lead_time" required min="1">
                     </div>
                     
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-bold">Kategori</label>
+                        <select class="form-select" id="category">
+                            <option value="Genel">Genel</option>
+                            <option value="Soğuk Zincir">Soğuk Zincir</option>
+                            <option value="Kuru Gıda">Kuru Gıda</option>
+                            <option value="Teknoloji">Teknoloji</option>
+                            <option value="Mobilya">Mobilya</option>
+                        </select>
+                    </div>
+
                     <!-- YENİ EKLENEN ÜRÜN DETAYLARI -->
                     <div class="col-md-3">
                         <label class="form-label text-muted small fw-bold">Birim Boyutu (m³)</label>
@@ -130,6 +141,7 @@
             <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 border-bottom-0">
                 <h5 class="mb-0 text-secondary">Mevcut Ürünler</h5>
                 <div class="d-flex gap-3 align-items-center">
+                    <button id="globalRebalanceBtn" class="btn btn-sm btn-warning fw-bold text-dark shadow-sm">⚙️ Depoyu Dengele</button>
                     <a href="/warehouse-map" class="btn btn-sm btn-outline-secondary fw-bold">🏭 Depo Yönetimi</a>
                     <button class="btn btn-sm btn-outline-success fw-bold" onclick="exportCSV()">⬇️ Dışa Aktar</button>
                     <label class="btn btn-sm btn-outline-primary fw-bold mb-0" style="cursor: pointer;">
@@ -154,7 +166,7 @@
                             <th>Durum Analizi</th>
                             <th class="text-center">Hızlı Stok Çıkışı</th>
                             <th class="text-center">Stok Ekle</th>
-                            <th class="text-center">İşlemler</th>
+                            <th class="text-center">Yönetim</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -169,7 +181,7 @@
                         {% for item in group.product_list %}
                         <tr class="main-row" data-group-index="{{ group_loop_index }}" data-needs-reorder="{{ 'true' if item.needs_reorder else 'false' }}" data-id="{{ item.product_id }}">
                             <td class="ps-5 fw-bold text-secondary product-name" style="font-size: 0.9rem;">
-                                🏢 {{ item.supplier_name or 'Genel Tedarikçi' }}
+                                🏢 {{ item.supplier_name or 'Genel Tedarikçi' }} <span class="badge bg-light text-secondary border ms-1">{{ item.category }}</span>
                             </td>
                             <td><span class="badge bg-light text-dark border">{{ item.current_stock }} Adet</span></td>
                             <td>
@@ -179,6 +191,10 @@
                                     {% else %}
                                         <span class="badge bg-secondary">Atanmadı</span>
                                     {% endfor %}
+                                </div>
+                                <div class="mt-1 d-flex gap-1 flex-wrap">
+                                    <button class="btn btn-sm btn-outline-primary py-0 px-1 auto-assign-btn" style="font-size:0.75rem;" data-id="{{ item.product_id }}">Oto Ata</button>
+                                    <button class="btn btn-sm btn-outline-info py-0 px-1 manual-assign-btn" style="font-size:0.75rem;" data-id="{{ item.product_id }}">Manuel Ata</button>
                                 </div>
                                 <div class="text-muted mt-1" style="font-size: 0.7rem; font-weight: bold;">
                                     {{ item.total_pallets }} Palet ({{ item.items_per_pallet }} adet/palet) | {{ item.weight_kg }} kg | {{ item.size_m3 }} m³
@@ -210,14 +226,12 @@
                                 </div>
                             </td>
                             <td class="text-center">
-                                {% if item.supplier_email %}
-                                <a href="mailto:{{ item.supplier_email }}?subject={{ (item.product_name ~ ' Siparişi') | urlencode }}&body={{ ('Merhaba, depo kayıtlarımıza göre ' ~ item.product_name ~ ' ürününün stoğu kritik seviyeye inmiştir. Lütfen yeni parti gönderimi için dönüş yapınız.') | urlencode }}" class="btn btn-sm {% if item.needs_reorder %}btn-warning text-dark{% else %}btn-outline-secondary{% endif %} fw-bold mb-1" title="Tedarikçiye Mail Gönder">✉️ Mail</a>
-                                {% else %}
-                                <button class="btn btn-sm btn-outline-secondary mb-1" disabled title="Email girilmedi">✉️ Mail</button>
-                                {% endif %}
-                                <button class="btn btn-sm btn-outline-primary product-chart-btn mb-1" data-id="{{ item.product_id }}" data-name="{{ item.product_name }}">📈 Grafik</button>
-                                <button class="btn btn-sm btn-outline-info log-btn mb-1" data-id="{{ item.product_id }}">📜 Geçmiş</button>
-                                <button class="btn btn-sm btn-outline-danger delete-btn" data-id="{{ item.product_id }}">🗑️ Sil</button>
+                                <div class="btn-group btn-group-sm shadow-sm" role="group">
+                                    <a href="{% if item.supplier_email %}mailto:{{ item.supplier_email }}?subject={{ (item.product_name ~ ' Siparişi') | urlencode }}&body={{ ('Merhaba, ' ~ item.product_name ~ ' stoğu azalmıştır.') | urlencode }}{% else %}#{% endif %}" class="btn {% if item.needs_reorder %}btn-warning{% else %}btn-light border{% endif %} {% if not item.supplier_email %}disabled{% endif %}" title="Tedarikçiye Mail Gönder">✉️</a>
+                                    <button class="btn btn-light border product-chart-btn" data-id="{{ item.product_id }}" data-name="{{ item.product_name }}" title="Satış Grafiği">📈</button>
+                                    <button class="btn btn-light border log-btn" data-id="{{ item.product_id }}" title="Ürün Geçmişi">📜</button>
+                                    <button class="btn btn-light border text-danger delete-btn" data-id="{{ item.product_id }}" title="Ürünü Sil">🗑️</button>
+                                </div>
                             </td>
                         </tr>
                         {% if item.has_expiry_tracking %}
@@ -279,6 +293,36 @@
         </div>
     </div>
 
+
+    <!-- MANUEL ATAMA MODALI -->
+    <div class="modal fade" id="manualAssignModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-info-subtle border-bottom-0">
+                    <h5 class="modal-title fw-bold text-dark">✋ Manuel Raf Ataması</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="manual_assign_product_id">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Hedef Raf / Konum</label>
+                        <select class="form-select" id="manual_assign_location_id">
+                            {% for loc in leaf_locations %}
+                                <option value="{{ loc.id }}">{{ loc.name }} (Kategori: {{ loc.category }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Atanacak Miktar</label>
+                        <input type="number" class="form-control" id="manual_assign_quantity" min="1" value="1">
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-info fw-bold w-100" id="saveManualAssignBtn">Atamayı Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- GEÇMİŞ (LOG) EKRANI (MODAL) -->
     <div class="modal fade" id="logModal" tabindex="-1" aria-hidden="true">
@@ -350,6 +394,7 @@
                 size_m3: parseFloat(document.getElementById('size_m3').value) || 0,
                 items_per_pallet: parseInt(document.getElementById('items_per_pallet').value) || 0,
                 weight_kg: parseFloat(document.getElementById('weight_kg').value) || 0,
+                    category: document.getElementById('category').value,
                 has_expiry_tracking: document.getElementById('has_expiry').checked,
                 expiry_date: document.getElementById('has_expiry').checked ? document.getElementById('expiry_date').value : null,
                 supplier_name: document.getElementById('supplier_name').value || "",
@@ -450,6 +495,20 @@
                     else { const err = await res.json(); alert("HATA: " + (err.detail || "Stok eklenemedi.")); }
                 } catch (err) { alert("Sunucuya ulaşılamadı!"); }
             }
+            // Otomatik Ata
+            else if (target.classList.contains('auto-assign-btn')) {
+                const pid = target.getAttribute('data-id');
+                try {
+                    const res = await fetch(`/products/${pid}/auto_assign`, { method: 'POST' });
+                    await handleResponse(res);
+                } catch (err) { alert("Sunucuya ulaşılamadı!"); }
+            }
+            // Manuel Ata - Modal Aç
+            else if (target.classList.contains('manual-assign-btn')) {
+                const pid = target.getAttribute('data-id');
+                document.getElementById('manual_assign_product_id').value = pid;
+                new bootstrap.Modal(document.getElementById('manualAssignModal')).show();
+            }
             // Ürün Silme
             else if (closest('.delete-btn')) {
                 const pid = closest('.delete-btn').getAttribute('data-id');
@@ -520,6 +579,30 @@
                     } else { alert("Grafik verisi alınamadı."); }
                 } catch (err) { alert("Sunucuya ulaşılamadı."); }
             }
+        });
+
+        // Manuel Atama Kaydet Butonu
+        document.getElementById('saveManualAssignBtn')?.addEventListener('click', async () => {
+            const pid = document.getElementById('manual_assign_product_id').value;
+            const locId = document.getElementById('manual_assign_location_id').value;
+            const qty = parseInt(document.getElementById('manual_assign_quantity').value);
+            try {
+                const res = await fetch(`/products/${pid}/manual_assign`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ location_id: parseInt(locId), quantity: qty })
+                });
+                await handleResponse(res);
+            } catch (err) { alert("Sunucuya ulaşılamadı!"); }
+        });
+
+        // Genel Depo Dengeleme Butonu (Manuel Tetikleyici)
+        document.getElementById('globalRebalanceBtn')?.addEventListener('click', async () => {
+            if (!confirm("Depodaki tüm ürünler, kapasitelerine ve kategorilerine göre yeniden düzenlenecektir. Onaylıyor musunuz?")) return;
+            try {
+                const res = await fetch('/warehouse/rebalance', { method: 'POST' });
+                await handleResponse(res);
+            } catch (err) { alert("Sunucuya ulaşılamadı!"); }
         });
 
         // 6. Özet İstatistikleri Otomatik Güncelleme (Canlı Veri)

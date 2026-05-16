@@ -15,6 +15,7 @@ class ProductCreate(BaseModel):
     size_m3: float = 0.0
     items_per_pallet: int = 0
     weight_kg: float = 0.0
+    category: str = "Genel"
     has_expiry_tracking: bool = False
     expiry_date: date | None = None
     supplier_name: str = ""
@@ -52,6 +53,7 @@ class LocationBase(BaseModel):
     parent_id: int | None = None
     max_volume_m3: float = 0.0
     max_weight_kg: float = 0.0
+    category: str = "Genel"
     is_cold_chain: bool = False
 
 class LocationCreate(LocationBase):
@@ -61,6 +63,10 @@ class Location(LocationBase):
     id: int
     class Config:
         from_attributes = True
+
+class ManualAssign(BaseModel):
+    location_id: int
+    quantity: int
 
 class LocationResponse(Location):
     sub_locations: list['LocationResponse'] = []

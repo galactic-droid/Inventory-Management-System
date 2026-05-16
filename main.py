@@ -57,6 +57,7 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
         existing_product.supplier_name = product.supplier_name
         existing_product.supplier_email = product.supplier_email
         existing_product.is_cold_chain = product.is_cold_chain
+        existing_product.category = product.category
         
         # HATA DÜZELTİLDİ: Değeri körü körüne ezmek yerine, servisin gerçek satışlara 
         # veya beklentiye bakarak doğru değeri (Soğuk Başlangıç mantığıyla) hesaplamasını sağlıyoruz.
@@ -93,6 +94,7 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
             size_m3=product.size_m3,
             items_per_pallet=product.items_per_pallet,
             weight_kg=product.weight_kg,
+            category=product.category,
             has_expiry_tracking=product.has_expiry_tracking,
             supplier_name=product.supplier_name,
             supplier_email=product.supplier_email,
@@ -102,9 +104,10 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
         db.commit()
         db.refresh(new_product)
         
-        # Yeni ürün eklendiği için depoyu yeniden dengele
-        change_log = rebalancing_service.rebalance_warehouse(db)
+        # SADECE yeni ürünü uygun boş bir rafa yerleştir. (Tüm depoyu karıştırma)
+        inventory_service.manage_placements(new_product, db)
         db.commit()
+        change_log = ["Yeni ürün boş bir rafa atandı."]
         
         # Yeni ürün partisini oluştur
         if product.has_expiry_tracking and product.stock_quantity > 0:
@@ -220,6 +223,44 @@ def add_stock(product_id: int, data: schemas.ProductAddStock, db: Session = Depe
     print(f"\033[94m[STOK EKLENDİ]\033[0m '{product.name}' ürününe {data.quantity} adet eklendi. Yeni Stok: {product.stock_quantity}")
     return {"mesaj": "Stok başarıyla güncellendi."}
 
+# --- MANUEL VE OTOMATİK RAF ATAMA ENDPOINT'LERİ ---
+@app.post("/products/{product_id}/auto_assign")
+def auto_assign_product(product_id: int, db: Session = Depends(get_db)):
+    product = db.query(models.product.Product).filter(models.product.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Ürün bulunamadı")
+        
+    inventory_service.manage_placements(product, db)
+    db.commit()
+    return {"mesaj": "Otomatik atama işlemi çalıştırıldı."}
+
+@app.post("/products/{product_id}/manual_assign")
+def manual_assign_product(product_id: int, data: schemas.ManualAssign, db: Session = Depends(get_db)):
+    product = db.query(models.product.Product).filter(models.product.Product.id == product_id).first()
+    location = db.query(models.product.Location).filter(models.product.Location.id == data.location_id).first()
+    
+    if not product or not location:
+        raise HTTPException(status_code=404, detail="Ürün veya Lokasyon bulunamadı")
+    if data.quantity <= 0:
+        raise HTTPException(status_code=400, detail="Miktar 0'dan büyük olmalıdır.")
+        
+    # Kapasite kontrolü
+    current_vol = sum(p.product.size_m3 * p.quantity for p in location.placements if p.product)
+    current_wgt = sum(p.product.weight_kg * p.quantity for p in location.placements if p.product)
+    rem_vol = location.max_volume_m3 - current_vol
+    rem_wgt = location.max_weight_kg - current_wgt
+    
+    if (data.quantity * product.size_m3) > rem_vol or (data.quantity * product.weight_kg) > rem_wgt:
+        raise HTTPException(status_code=400, detail="Bu rafa belirtilen miktarda ürün sığmaz (Kapasite yetersiz).")
+        
+    existing_placement = db.query(models.product.StockPlacement).filter(models.product.StockPlacement.product_id == product.id, models.product.StockPlacement.location_id == location.id).first()
+    if existing_placement:
+        existing_placement.quantity += data.quantity
+    else:
+        db.add(models.product.StockPlacement(product_id=product.id, location_id=location.id, quantity=data.quantity))
+    db.commit()
+    return {"mesaj": f"{data.quantity} adet ürün başarıyla atanmıştır."}
+
 # --- ÜRÜN SİLME ENDPOINT'İ ---
 @app.delete("/products/{product_id}")
 def delete_product(product_id: int, db: Session = Depends(get_db)):
@@ -238,9 +279,10 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
     occupied_location_ids_after = {p.location_id for p in db.query(models.product.StockPlacement.location_id).distinct()}
 
     rebalance_log = None
-    if len(occupied_location_ids_after) < len(occupied_location_ids_before):
-        print("Bir ürün silindi ve lokasyon boşaldı, depo yeniden denetlenecek.")
-        rebalance_log = rebalancing_service.rebalance_warehouse(db)
+    # Dengeleme algoritması kategorileri bozduğu için otomatik tetiklemeyi devre dışı bıraktık.
+    # if len(occupied_location_ids_after) < len(occupied_location_ids_before):
+    #     print("Bir ürün silindi ve lokasyon boşaldı, depo yeniden denetlenecek.")
+    #     rebalance_log = rebalancing_service.rebalance_warehouse(db)
 
     db.commit()
     
@@ -390,6 +432,13 @@ def create_location(location: schemas.LocationCreate, db: Session = Depends(get_
 
     return {"location": new_location, "rebalance_log": change_log}
 
+@app.post("/warehouse/rebalance")
+def trigger_rebalance(db: Session = Depends(get_db)):
+    # Tüm depo optimizasyon algoritmasını manuel tetikle
+    change_log = rebalancing_service.rebalance_warehouse(db)
+    db.commit()
+    return {"mesaj": "Tüm depo başarıyla yeniden dengelendi.", "rebalance_log": change_log}
+
 @app.get("/warehouse-map", response_class=HTMLResponse)
 def get_warehouse_map(request: Request, db: Session = Depends(get_db)):
     # Sadece en üst seviye lokasyonları (Ana Depolar) çekiyoruz
@@ -426,8 +475,8 @@ def get_stats(db: Session = Depends(get_db)):
 # --- KULLANICI DOSTU WEB ARAYÜZÜ (GÜNCELLENDİ) ---
 @app.get("/dashboard", response_class=HTMLResponse)
 def read_dashboard(request: Request, db: Session = Depends(get_db)):
-    # Ürünleri isme ve sonra tedarikçiye göre sıralayarak gruplanmış gibi görünmelerini sağla
-    db_products = db.query(models.product.Product).order_by(models.product.Product.name, models.product.Product.supplier_name).all()
+    # Ürünleri veritabanından çek
+    db_products = db.query(models.product.Product).all()
     
     grouped_data = {}
     critical_groups = set()
@@ -435,27 +484,43 @@ def read_dashboard(request: Request, db: Session = Depends(get_db)):
     
     for p in db_products:
         status = inventory_service.calculate_stock_status(p)
-        name = status["product_name"]
+        raw_name = status["product_name"]
         
-        if name not in grouped_data:
-            grouped_data[name] = {"product_name": name, "total_stock": 0, "product_list": []}
+        # Büyük/küçük harf duyarlılığını kaldırıp gruplama yapmak için anahtar (Örn: "BALDO PİRİNÇ")
+        group_key = raw_name.strip().upper()
+        
+        if group_key not in grouped_data:
+            display_name = raw_name.strip().title() # Başlığı düzgün formatta göster
+            grouped_data[group_key] = {"product_name": display_name, "total_stock": 0, "product_list": []}
             
-        grouped_data[name]["total_stock"] += status["current_stock"]
-        grouped_data[name]["product_list"].append(status)
+        grouped_data[group_key]["total_stock"] += status["current_stock"]
+        grouped_data[group_key]["product_list"].append(status)
         
         total_stock += p.stock_quantity
         
         if status["needs_reorder"]:
-            critical_groups.add(name)
+            critical_groups.add(group_key)
+            
+    # Alt ürünleri tedarikçi ismine göre sırala
+    for group in grouped_data.values():
+        group["product_list"].sort(key=lambda x: (x.get("supplier_name") or "").upper())
         
+    # Grupların kendisini de isme göre alfabetik sırala
+    sorted_groups = sorted(grouped_data.values(), key=lambda x: x["product_name"])
+        
+    # Manuel atama modali için en alt seviyedeki rafları gönderiyoruz
+    all_locs = db.query(models.product.Location).all()
+    leaf_locations = [loc for loc in all_locs if not loc.sub_locations and loc.max_volume_m3 > 0]
+
     # Yeni sürümlere tam uyumlu TemplateResponse kullanımı:
     return templates.TemplateResponse(
         request=request, 
         name="index.html", 
         context={
-            "grouped_products": list(grouped_data.values()),
-            "total_products": len(grouped_data),
+            "grouped_products": sorted_groups,
+            "total_products": len(sorted_groups),
             "total_stock": total_stock,
-            "total_critical": len(critical_groups)
+            "total_critical": len(critical_groups),
+            "leaf_locations": leaf_locations
         }
     )

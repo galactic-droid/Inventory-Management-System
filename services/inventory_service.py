@@ -42,28 +42,39 @@ def manage_placements(product: Product, db: Session):
 
         # Öncelik 2: Hala yerleştirilecek ürün varsa, ağaçta boş bir "En Alt Seviye (Leaf)" ara
         if quantity_to_place > 0:
-            occupied_location_ids = {p.location_id for p in db.query(StockPlacement.location_id).distinct()}
-            
-            # Ağaç yapısında (recursive) gezinerek boş "Leaf" (Yaprak/En alt) lokasyonları bulma
-            def get_empty_leaf_locations(loc, empty_list):
+            # Ağaçtaki tüm "En Alt Seviye (Leaf)" rafları al
+            def get_leaf_locations(loc, leaf_list):
                 if not loc.sub_locations:
-                    if loc.max_volume_m3 > 0 and loc.id not in occupied_location_ids:
-                        if getattr(loc, "is_cold_chain", False) == getattr(product, "is_cold_chain", False):
-                            empty_list.append(loc)
+                    if loc.max_volume_m3 > 0:
+                        leaf_list.append(loc)
                 else:
                     for sub in loc.sub_locations:
-                        get_empty_leaf_locations(sub, empty_list)
+                        get_leaf_locations(sub, leaf_list)
                         
             top_locations = db.query(Location).filter(Location.parent_id == None).order_by(Location.name).all()
-            empty_locations = []
+            leaf_locations = []
             for loc in top_locations:
-                get_empty_leaf_locations(loc, empty_locations)
+                get_leaf_locations(loc, leaf_locations)
 
-            for loc in empty_locations:
                 if quantity_to_place <= 0: break
                 
-                can_place_by_vol = math.floor(loc.max_volume_m3 / unit_volume) if unit_volume > 0 else float('inf')
-                can_place_by_wgt = math.floor(loc.max_weight_kg / unit_weight) if unit_weight > 0 else float('inf')
+                # Kategori ve Soğuk Zincir Uyumluluğu
+                loc_cat = getattr(loc, "category", "Genel")
+                prod_cat = getattr(product, "category", "Genel")
+                if loc_cat != "Genel" and loc_cat != prod_cat:
+                    continue
+                if getattr(loc, "is_cold_chain", False) != getattr(product, "is_cold_chain", False):
+                    continue
+                
+                # Kapasite Kontrolü (Tamamen boş olmak zorunda değil, kapasite varsa ekle)
+                current_vol = sum(p.product.size_m3 * p.quantity for p in loc.placements if p.product)
+                current_wgt = sum(p.product.weight_kg * p.quantity for p in loc.placements if p.product)
+                
+                rem_vol = loc.max_volume_m3 - current_vol
+                rem_wgt = loc.max_weight_kg - current_wgt
+                
+                can_place_by_vol = math.floor(rem_vol / unit_volume) if unit_volume > 0 else float('inf')
+                can_place_by_wgt = math.floor(rem_wgt / unit_weight) if unit_weight > 0 else float('inf')
                 loc_capacity = min(can_place_by_vol, can_place_by_wgt)
 
                 if loc_capacity > 0:
@@ -185,6 +196,7 @@ def calculate_stock_status(product):
         "size_m3": product.size_m3,
         "items_per_pallet": product.items_per_pallet,
         "total_pallets": total_pallets,
+        "category": getattr(product, 'category', "Genel"),
         "weight_kg": product.weight_kg,
         "has_expiry_tracking": getattr(product, 'has_expiry_tracking', False),
         "batches": batch_list,

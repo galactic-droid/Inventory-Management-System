@@ -17,6 +17,7 @@ class Location(Base):
     # Sadece en alt seviyedeki (Leaf Node) lokasyonlar için kapasite kullanılır
     max_volume_m3 = Column(Float, default=0.0)
     max_weight_kg = Column(Float, default=0.0)
+    category = Column(String, default="Genel") # EKLENDİ: Lokasyon Kategorisi
     is_cold_chain = Column(Boolean, default=False) # Soğuk zincir lokasyonu mu?
 
     sub_locations = relationship("Location", back_populates="parent", cascade="all, delete-orphan")
@@ -58,6 +59,7 @@ class Product(Base):
     items_per_pallet = Column(Integer, default=0) # Bir paletteki ürün sayısı
     weight_kg = Column(Float, default=0.0) # Ürün ağırlığı (kg)    
     
+    category = Column(String, default="Genel") # Ürün Kategorisi
     has_expiry_tracking = Column(Boolean, default=False) # Bu ürün için SKT takibi yapılıyor mu?
     supplier_name = Column(String, default="") # Tedarikçi Firma Adı
     supplier_email = Column(String, default="") # Tedarikçi E-posta Adresi

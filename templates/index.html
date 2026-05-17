@@ -378,8 +378,13 @@
                 }
                 window.location.reload(); 
             } else {
-                const err = await res.json();
-                alert("HATA: " + (err.detail || "İşlem gerçekleştirilemedi."));
+                try {
+                    const err = await res.json();
+                    const errMsg = Array.isArray(err.detail) ? err.detail[0].msg : err.detail;
+                    alert("HATA: " + (errMsg || "İşlem gerçekleştirilemedi."));
+                } catch (e) {
+                    alert("HATA: Sunucu bilinmeyen bir hata döndürdü (Kod: " + res.status + ").");
+                }
             }
         }
 

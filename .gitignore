@@ -1,12 +1,5 @@
-# Veritabanı ve Veri Klasörleri
-data/
-*.db
-*.sqlite
-
-# Python ve Sanal Ortam
-venv/
+# Python & Virtual Environment
 __pycache__/
 *.pyc
-
-# Çevresel Değişkenler
-.env
+# Sunum ve Taslak Dosyaları
+sunum_notlari.md

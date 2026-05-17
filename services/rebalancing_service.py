@@ -18,7 +18,7 @@ Amaçlar:
 """
 from sqlalchemy.orm import Session, joinedload
 import math
-from models.product import Product, Location, StockPlacement
+from models.product import Product, Location, StockPlacement, InventoryLog
 
 def rebalance_warehouse(db: Session):
     """
@@ -151,7 +151,10 @@ def rebalance_warehouse(db: Session):
         old_str = ", ".join(sorted(list(old_locations))) or "YOK"
         new_str = ", ".join(sorted(list(new_locations))) or "YOK"
         
-        change_log.append(f"'{product_name}' ürünü yeniden konumlandırıldı: Eski Konumlar [{old_str}] -> Yeni Konumlar [{new_str}]")
+        log_desc = f"Eski Konumlar [{old_str}] -> Yeni Konumlar [{new_str}]"
+        change_log.append(f"'{product_name}' ürünü yeniden konumlandırıldı: {log_desc}")
+        # Hareket raporunda (loglarda) görünmesi için veritabanına kaydet
+        db.add(InventoryLog(product_id=pid, action_type="RAF DEĞİŞİKLİĞİ", description=log_desc))
 
     print(f"Depo yeniden dengeleme tamamlandı. {len(change_log)} değişiklik yapıldı.")
     return change_log

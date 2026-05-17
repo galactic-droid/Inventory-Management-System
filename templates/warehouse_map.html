@@ -16,6 +16,7 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2 class="text-dark fw-bold">🏭 Depo Yönetimi & Haritası</h2>
             <div>
+                <button class="btn btn-info fw-bold shadow-sm me-2 text-white" data-bs-toggle="modal" data-bs-target="#reportModal">📜 Hareket Raporu</button>
                 <button id="rebalanceBtn" class="btn btn-warning fw-bold shadow-sm me-2">⚙️ Depoyu Dengele</button>
                 <a href="/dashboard" class="btn btn-primary fw-bold shadow-sm">Ana Panele Dön</a>
             </div>
@@ -141,16 +142,18 @@
                                 
                                 {% if loc.max_volume_m3 > 0 or loc.max_weight_kg > 0 %}
                                 <div class="mt-2 pt-2 border-top">
+                                    {% set vol_class = 'bg-success' if volume_percent <= 50 else ('bg-warning' if volume_percent <= 80 else 'bg-danger') %}
+                                    {% set wgt_class = 'bg-success' if weight_percent <= 50 else ('bg-warning' if weight_percent <= 80 else 'bg-danger') %}
                                     <div class="mb-1">
                                         <small class="text-muted" style="font-size: 0.7rem;">Hacim ({{ "%.2f"|format(totals.volume) }} / {{ loc.max_volume_m3 }} m³)</small>
                                         <div class="progress" style="height: 6px;">
-                                            <div class="progress-bar bg-info" role="progressbar" {{ ('style="width: %s%%;"' % volume_percent)|safe }}></div>
+                                            <div class="progress-bar {{ vol_class }}" role="progressbar" {{ ('style="width: %s%%;"' % volume_percent)|safe }}></div>
                                         </div>
                                     </div>
                                     <div>
                                         <small class="text-muted" style="font-size: 0.7rem;">Ağırlık ({{ "%.1f"|format(totals.weight) }} / {{ loc.max_weight_kg }} kg)</small>
                                         <div class="progress" style="height: 6px;">
-                                            <div class="progress-bar bg-success" role="progressbar" {{ ('style="width: %s%%;"' % weight_percent)|safe }}></div>
+                                            <div class="progress-bar {{ wgt_class }}" role="progressbar" {{ ('style="width: %s%%;"' % weight_percent)|safe }}></div>
                                         </div>
                                     </div>
                                 </div>
@@ -171,6 +174,53 @@
             {% else %}
                 <div class="alert alert-info shadow-sm border-0">Henüz tanımlanmış bir depo veya lokasyon bulunmuyor. Yukarıdan yeni bir tane ekleyebilirsiniz.</div>
             {% endfor %}
+        </div>
+    </div>
+
+    <!-- DEPO HAREKET RAPORU MODALI -->
+    <div class="modal fade" id="reportModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white border-bottom-0">
+                    <h5 class="modal-title fw-bold">📜 Depo Hareket ve Değişiklik Raporu</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">Son 100 depo değişikliği listelenmektedir.</span>
+                        <div>
+                            <button class="btn btn-sm btn-outline-success fw-bold me-2" onclick="exportLogsCSV()">⬇️ CSV İndir</button>
+                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="printReport()">🖨️ Raporu Yazdır / PDF Al</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive" id="printableReportArea" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-striped table-hover mb-0" style="font-size: 0.85rem;">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th class="ps-3">Tarih</th>
+                                    <th>Ürün</th>
+                                    <th>İşlem Tipi</th>
+                                    <th>Açıklama</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in recent_logs %}
+                                <tr>
+                                    <td class="ps-3">{{ log.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                                    <td class="fw-bold text-secondary">{{ log.product.name if log.product else 'Bilinmeyen Ürün' }}</td>
+                                    <td><span class="badge bg-secondary">{{ log.action_type }}</span></td>
+                                    <td>{{ log.description }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">Henüz bir depo hareketi bulunmuyor.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -254,6 +304,27 @@
                 sessionStorage.removeItem('rebalanceLogs');
             }
         });
+
+        // CSV Olarak Dışa Aktar
+        function exportLogsCSV() {
+            window.location.href = '/export/logs/csv';
+        }
+
+        // Rapor Yazdırma İşlevi
+        function printReport() {
+            const printContent = document.getElementById('printableReportArea').innerHTML;
+            const originalContent = document.body.innerHTML;
+            
+            document.body.innerHTML = `
+                <div class="container mt-4">
+                    <h2 class="mb-4">Depo Hareket Raporu</h2>
+                    ${printContent}
+                </div>
+            `;
+            window.print();
+            document.body.innerHTML = originalContent;
+            window.location.reload(); // Sayfayı eski haline döndürmek için yenile
+        }
 
     document.getElementById('addLocationForm').addEventListener('submit', async (e) => {
             e.preventDefault();

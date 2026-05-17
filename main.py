@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, Request, HTTPException, UploadFile, File, 
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from database import engine, Base, SessionLocal
 import models.product
 import schemas.product_schema as schemas
@@ -32,13 +33,13 @@ def get_db():
 def read_root():
     return {"mesaj": "Sistem Çalışıyor!"}
 
-@app.post("/products/", response_model=schemas.ProductResponse)
+@app.post("/products/")
 def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
     # Aynı isimde bir ürün var mı diye veritabanını kontrol et
-    # Aynı isim ve aynı tedarikçiye sahip bir ürün var mı?
+    # Aynı isim ve aynı tedarikçiye sahip bir ürün var mı? (Büyük/küçük harf duyarsız)
     existing_product = db.query(models.product.Product).filter(
-        models.product.Product.name == product.name,
-        models.product.Product.supplier_name == product.supplier_name
+        func.lower(models.product.Product.name) == product.name.strip().lower(),
+        func.lower(models.product.Product.supplier_name) == product.supplier_name.strip().lower()
     ).first()
     if existing_product:
         # Eğer ürün varsa, yeni gelen verilerle alanlarını güncelle
@@ -82,7 +83,7 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
         db.refresh(existing_product)
         # Terminale sarı renkli güncelleme logu (stok ekleme durumunu belirtir)
         print(f"\033[93m[GÜNCELLEME]\033[0m '{existing_product.name}' ürününe {product.stock_quantity} adet eklendi. Yeni Stok: {existing_product.stock_quantity}. Yeni Tüketim Tahmini: {existing_product.estimated_daily_consumption:.2f}/gün")
-        return existing_product
+        return {"mesaj": f"'{existing_product.name}' ürünü güncellendi ve stoğa eklendi."}
     else:
         # Eğer ürün yoksa, yeni bir tane oluştur
         new_product = models.product.Product(
@@ -119,8 +120,8 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
         db.commit()
         
         # Terminale yeşil renkli yeni ürün logu
-        print(f"\033[92m[YENİ ÜRÜN]\033[0m '{new_product.name}' eklendi. Depo yeniden denetlendi.")
-        return {"product": new_product, "rebalance_log": change_log}
+        print(f"\033[92m[YENİ ÜRÜN]\033[0m '{new_product.name}' eklendi.")
+        return {"mesaj": f"'{new_product.name}' başarıyla eklendi.", "rebalance_log": change_log}
 
 @app.get("/products/{product_id}/status")
 def check_stock_status(product_id: int, db: Session = Depends(get_db)):
@@ -231,6 +232,9 @@ def auto_assign_product(product_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Ürün bulunamadı")
         
     inventory_service.manage_placements(product, db)
+    
+    new_log = models.product.InventoryLog(product_id=product.id, action_type="OTOMATİK ATAMA", description="Ürünün raflardaki yerleşimi kapasiteye göre güncellendi.")
+    db.add(new_log)
     db.commit()
     return {"mesaj": "Otomatik atama işlemi çalıştırıldı."}
 
@@ -258,6 +262,9 @@ def manual_assign_product(product_id: int, data: schemas.ManualAssign, db: Sessi
         existing_placement.quantity += data.quantity
     else:
         db.add(models.product.StockPlacement(product_id=product.id, location_id=location.id, quantity=data.quantity))
+        
+    new_log = models.product.InventoryLog(product_id=product.id, action_type="MANUEL ATAMA", description=f"{data.quantity} adet ürün '{location.name}' konumuna atandı.")
+    db.add(new_log)
     db.commit()
     return {"mesaj": f"{data.quantity} adet ürün başarıyla atanmıştır."}
 
@@ -347,6 +354,30 @@ def export_csv(db: Session = Depends(get_db)):
         content=output.getvalue().encode('utf-8-sig'), # Türkçe karakter desteği için utf-8-sig
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=envanter_durumu.csv"}
+    )
+
+@app.get("/export/logs/csv")
+def export_logs_csv(db: Session = Depends(get_db)):
+    logs = db.query(models.product.InventoryLog).options(joinedload(models.product.InventoryLog.product)).order_by(models.product.InventoryLog.created_at.desc()).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Tarih", "Ürün", "İşlem Tipi", "Açıklama"])
+    
+    for log in logs:
+        product_name = log.product.name if log.product else "Bilinmeyen Ürün"
+        writer.writerow([
+            log.created_at.strftime('%d.%m.%Y %H:%M'),
+            product_name,
+            log.action_type,
+            log.description
+        ])
+        
+    output.seek(0)
+    return Response(
+        content=output.getvalue().encode('utf-8-sig'), # Excel'de Türkçe karakterlerin düzgün görünmesi için utf-8-sig kullanıyoruz
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=hareket_raporu.csv"}
     )
 
 @app.post("/import/csv")
@@ -449,8 +480,11 @@ def get_warehouse_map(request: Request, db: Session = Depends(get_db)):
     # Formda "Üst Konum" seçebilmek için tüm lokasyonları çekiyoruz
     all_locations = db.query(models.product.Location).order_by(models.product.Location.name).all()
 
+    # Son depo değişikliklerini (logları) raporlamak için çekiyoruz
+    recent_logs = db.query(models.product.InventoryLog).options(joinedload(models.product.InventoryLog.product)).order_by(models.product.InventoryLog.created_at.desc()).limit(100).all()
+
     return templates.TemplateResponse(
-        request=request, name="warehouse_map.html", context={"locations": locations, "all_locations": all_locations}
+        request=request, name="warehouse_map.html", context={"locations": locations, "all_locations": all_locations, "recent_logs": recent_logs}
     )
 # --- ÖZET İSTATİSTİKLER API ENDPOINT'İ ---
 @app.get("/api/stats")
@@ -487,7 +521,8 @@ def read_dashboard(request: Request, db: Session = Depends(get_db)):
         raw_name = status["product_name"]
         
         # Büyük/küçük harf duyarlılığını kaldırıp gruplama yapmak için anahtar (Örn: "BALDO PİRİNÇ")
-        group_key = raw_name.strip().upper()
+        # Türkçe 'i' ve 'I' harflerinin farklı algılanıp yeni başlık açmasını engellemek için normalize ediyoruz
+        group_key = raw_name.strip().upper().replace("İ", "I")
         
         if group_key not in grouped_data:
             display_name = raw_name.strip().title() # Başlığı düzgün formatta göster

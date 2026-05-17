@@ -36,7 +36,14 @@ def reset_and_seed_database():
         raf_b = Location(name="Raf B", location_type="RACK", parent_id=koridor_2.id, is_cold_chain=False, category="Kuru Gıda")
         raf_c = Location(name="Raf C", location_type="RACK", parent_id=koridor_3.id, is_cold_chain=False, category="Teknoloji")
         raf_d = Location(name="Raf D", location_type="RACK", parent_id=koridor_4.id, is_cold_chain=False, category="Mobilya")
-        db.add_all([raf_a, raf_b, raf_c, raf_d])
+        
+        # Yeni Eklenen Raflar (RACK)
+        raf_a2 = Location(name="Raf A2 (Soğuk)", location_type="RACK", parent_id=koridor_1.id, is_cold_chain=True, category="Soğuk Zincir")
+        raf_b2 = Location(name="Raf B2", location_type="RACK", parent_id=koridor_2.id, is_cold_chain=False, category="Kuru Gıda")
+        raf_c2 = Location(name="Raf C2", location_type="RACK", parent_id=koridor_3.id, is_cold_chain=False, category="Teknoloji")
+        raf_d2 = Location(name="Raf D2", location_type="RACK", parent_id=koridor_4.id, is_cold_chain=False, category="Mobilya")
+        
+        db.add_all([raf_a, raf_b, raf_c, raf_d, raf_a2, raf_b2, raf_c2, raf_d2])
         db.commit()
 
         # Raf Gözleri (Leaf Nodes - Kapasiteli olan en alt seviyeler)
@@ -45,7 +52,19 @@ def reset_and_seed_database():
         goz_b1 = Location(name="Göz B1", location_type="BIN", parent_id=raf_b.id, max_volume_m3=20.0, max_weight_kg=3000.0, is_cold_chain=False, category="Kuru Gıda")
         goz_c1 = Location(name="Göz C1", location_type="BIN", parent_id=raf_c.id, max_volume_m3=20.0, max_weight_kg=1500.0, is_cold_chain=False, category="Teknoloji")
         goz_d1 = Location(name="Göz D1", location_type="BIN", parent_id=raf_d.id, max_volume_m3=50.0, max_weight_kg=4000.0, is_cold_chain=False, category="Mobilya")
-        db.add_all([goz_a1, goz_a2, goz_b1, goz_c1, goz_d1])
+        
+        # Yeni Eklenen Raf Gözleri (BIN)
+        goz_a3 = Location(name="Göz A3 (Soğuk)", location_type="BIN", parent_id=raf_a2.id, max_volume_m3=15.0, max_weight_kg=2000.0, is_cold_chain=True, category="Soğuk Zincir")
+        goz_a4 = Location(name="Göz A4 (Soğuk)", location_type="BIN", parent_id=raf_a2.id, max_volume_m3=15.0, max_weight_kg=2000.0, is_cold_chain=True, category="Soğuk Zincir")
+        goz_b2 = Location(name="Göz B2", location_type="BIN", parent_id=raf_b.id, max_volume_m3=20.0, max_weight_kg=3000.0, is_cold_chain=False, category="Kuru Gıda")
+        goz_b3 = Location(name="Göz B3", location_type="BIN", parent_id=raf_b2.id, max_volume_m3=20.0, max_weight_kg=3000.0, is_cold_chain=False, category="Kuru Gıda")
+        goz_b4 = Location(name="Göz B4", location_type="BIN", parent_id=raf_b2.id, max_volume_m3=20.0, max_weight_kg=3000.0, is_cold_chain=False, category="Kuru Gıda")
+        goz_c2 = Location(name="Göz C2", location_type="BIN", parent_id=raf_c.id, max_volume_m3=20.0, max_weight_kg=1500.0, is_cold_chain=False, category="Teknoloji")
+        goz_c3 = Location(name="Göz C3", location_type="BIN", parent_id=raf_c2.id, max_volume_m3=20.0, max_weight_kg=1500.0, is_cold_chain=False, category="Teknoloji")
+        goz_d2 = Location(name="Göz D2", location_type="BIN", parent_id=raf_d.id, max_volume_m3=50.0, max_weight_kg=4000.0, is_cold_chain=False, category="Mobilya")
+        goz_d3 = Location(name="Göz D3", location_type="BIN", parent_id=raf_d2.id, max_volume_m3=50.0, max_weight_kg=4000.0, is_cold_chain=False, category="Mobilya")
+
+        db.add_all([goz_a1, goz_a2, goz_b1, goz_c1, goz_d1, goz_a3, goz_a4, goz_b2, goz_b3, goz_b4, goz_c2, goz_c3, goz_d2, goz_d3])
         db.commit()
 
         print("📦 Örnek (Dummy) Ürünler oluşturuluyor...")
